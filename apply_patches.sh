@@ -230,14 +230,17 @@ for entry in "${PATCH_QUEUE[@]}"; do
     full_repo_path="$LUNARIS_ROOT/$repo_path"
     patch_file="$PATCH_DIR/$patch_dir_name/$patch_name"
     
+    # Extract commit subject from patch
+    COMMIT_SUBJECT=$(grep "^Subject:" "$patch_file" 2>/dev/null | head -1 | sed 's/^Subject: \[PATCH[^]]*\] //' | cut -c1-60)
+    
     print_progress "$current" "$TOTAL" "$patch_name"
     log "  Description : $description"
+    log "  Commit      : $COMMIT_SUBJECT"
     log "  Repository  : $full_repo_path"
-    log "  Patch file  : $patch_file"
     
     if [ ! -d "$full_repo_path" ]; then
         log "  ${RED}✗ SKIP - Repository not found${NC}"
-        result "SKIP  | $repo_path | $patch_name | repo not found"
+        result "SKIP  | $repo_path | $COMMIT_SUBJECT | repo not found"
         ((SKIPPED++))
         log ""
         continue
@@ -245,7 +248,7 @@ for entry in "${PATCH_QUEUE[@]}"; do
     
     if [ ! -f "$patch_file" ]; then
         log "  ${RED}✗ SKIP - Patch file not found${NC}"
-        result "SKIP  | $repo_path | $patch_name | file not found"
+        result "SKIP  | $repo_path | $COMMIT_SUBJECT | file not found"
         ((SKIPPED++))
         log ""
         continue
@@ -256,7 +259,7 @@ for entry in "${PATCH_QUEUE[@]}"; do
     cd "$full_repo_path" 2>/dev/null
     if git cat-file -e "$commit_id" 2>/dev/null; then
         log "  ${GREEN}✓ SKIP - Commit already exists ($commit_id)${NC}"
-        result "SKIP  | $repo_path | $patch_name | commit already present"
+        result "SKIP  | $repo_path | $COMMIT_SUBJECT | already present"
         ((SKIPPED++))
         cd - > /dev/null 2>/dev/null
         log ""
@@ -265,7 +268,7 @@ for entry in "${PATCH_QUEUE[@]}"; do
     
     if is_patch_content_present "$full_repo_path" "$patch_file"; then
         log "  ${GREEN}✓ SKIP - Content already present in repo${NC}"
-        result "SKIP  | $repo_path | $patch_name | content already applied"
+        result "SKIP  | $repo_path | $COMMIT_SUBJECT | content already applied"
         ((SKIPPED++))
         cd - > /dev/null 2>/dev/null
         log ""
@@ -282,17 +285,17 @@ for entry in "${PATCH_QUEUE[@]}"; do
     case $apply_result in
         0)
             log "  ${GREEN}✓ APPLIED SUCCESSFULLY${NC}"
-            result "OK    | $repo_path | $patch_name | applied"
+            result "OK    | $repo_path | $COMMIT_SUBJECT | applied"
             ((APPLIED++))
             ;;
         1)
             log "  ${YELLOW}⚠ PARTIALLY APPLIED (semantic fix needed)${NC}"
-            result "PARTIAL | $repo_path | $patch_name | partial with semantic fix"
+            result "PARTIAL | $repo_path | $COMMIT_SUBJECT | partial with semantic fix"
             ((PARTIAL++))
             ;;
         2)
             log "  ${RED}✗ FAILED - All strategies exhausted${NC}"
-            result "FAIL  | $repo_path | $patch_name | all strategies failed"
+            result "FAIL  | $repo_path | $COMMIT_SUBJECT | all strategies failed"
             ((FAILED++))
             ;;
     esac
