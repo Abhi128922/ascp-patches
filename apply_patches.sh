@@ -189,8 +189,6 @@ declare -a PATCH_QUEUE=(
     "frameworks/native|frameworks_native|0001-surfaceflinger-RefreshRateOverlay-optional-panel-ref.patch|surfaceflinger: RefreshRateOverlay panel refresh rate"
     
     # frameworks/av (camera service)
-    "frameworks/av|frameworks_av|0001-frameworks-av.patch|av: CameraService extension support"
-    "frameworks/av|frameworks_av|0004-frameworks-av.patch|av: Add Oplus user data to StagefrightRecorder.h"
     "frameworks/av|frameworks_av|0001-camera-Relax-monotonic-timestamp-guard-for-still-cap.patch|av: Relax monotonic timestamp guard"
     "frameworks/av|frameworks_av|0002-camera-fix-Google-Lens-back-provider-deadlock-on-sha.patch|av: Fix Google-Lens→back provider deadlock"
     "frameworks/av|frameworks_av|0003-Add-Oplus-user-data-member-to-StagefrightRecorder.patch|av: Add Oplus user data to StagefrightRecorder.h"
@@ -216,7 +214,7 @@ declare -a PATCH_QUEUE=(
 # ── MAIN ────────────────────────────────────────────────────────────
 print_header
 
-log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (14 patches, dependency-ordered) ━━━${NC}"
+log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (12 patches, dependency-ordered) ━━━${NC}"
 log ""
 
 TOTAL=${#PATCH_QUEUE[@]}
