@@ -186,21 +186,21 @@ apply_patch() {
 # Path format: actual_android_source_path|patch_dir_name|patch_file|description
 declare -a PATCH_QUEUE=(
     # frameworks/native (low-level, apply first)
-    "frameworks/native|frameworks_native|0001-frameworks-native.patch|binder: bump BINDER_VM_SIZE 1MB→4MB"
-    "frameworks/native|frameworks_native|0002-frameworks-native.patch|surfaceflinger: RefreshRateOverlay panel refresh rate"
+    "frameworks/native|frameworks_native|0001-surfaceflinger-RefreshRateOverlay-optional-panel-ref.patch|surfaceflinger: RefreshRateOverlay panel refresh rate"
     
     # frameworks/av (camera service)
     "frameworks/av|frameworks_av|0001-frameworks-av.patch|av: CameraService extension support"
     "frameworks/av|frameworks_av|0004-frameworks-av.patch|av: Add Oplus user data to StagefrightRecorder.h"
-    "frameworks/av|frameworks_av|0006-frameworks-av.patch|av: Add kKeyOplusUserData to MetaDataBase.h"
-    "frameworks/av|frameworks_av|0005-frameworks-av.patch|av: Implement Oplus user data handling for HDR"
-    "frameworks/av|frameworks_av|0002-frameworks-av.patch|av: Relax monotonic timestamp guard"
-    "frameworks/av|frameworks_av|0003-frameworks-av.patch|av: Fix Google-Lens→back provider deadlock"
-    "frameworks/av|frameworks_av|0007-frameworks-av.patch|av: MPEG4Writer Oplus user data handling"
+    "frameworks/av|frameworks_av|0001-camera-Relax-monotonic-timestamp-guard-for-still-cap.patch|av: Relax monotonic timestamp guard"
+    "frameworks/av|frameworks_av|0002-camera-fix-Google-Lens-back-provider-deadlock-on-sha.patch|av: Fix Google-Lens→back provider deadlock"
+    "frameworks/av|frameworks_av|0003-Add-Oplus-user-data-member-to-StagefrightRecorder.patch|av: Add Oplus user data to StagefrightRecorder.h"
+    "frameworks/av|frameworks_av|0004-Implement-Oplus-user-data-handling-for-HDR.patch|av: Implement Oplus user data handling for HDR"
+    "frameworks/av|frameworks_av|0005-Add-kKeyOplusUserData-to-MetaDataBase.h.patch|av: Add kKeyOplusUserData to MetaDataBase.h"
+    "frameworks/av|frameworks_av|0006-HDR-FIX.-Enhance-MPEG4Writer-to-handle-Oplus-user-da.patch|av: MPEG4Writer Oplus user data handling"
     
     # frameworks/base
-    "frameworks/base|frameworks_base|0001-frameworks-base.patch|base: Redirect OPlus file manager"
-    "frameworks/base|frameworks_base|0002-frameworks-base.patch|base: ImageReader.getOplusHardwareBuffer()"
+    "frameworks/base|frameworks_base|0001-wm-ActivityStarter-Redirect-proprietary-OPlus-file-m.patch|base: Redirect OPlus file manager"
+    "frameworks/base|frameworks_base|0002-base-ImageReader.getOplusHardwareBuffer-OnePlus-came.patch|base: ImageReader.getOplusHardwareBuffer()"
     
     # device/qcom/sepolicy_vndr/sm8550 (sm8550 specific)
     "device/qcom/sepolicy_vndr/sm8550|device_qcom_sepolicy_vndr|0001-sepolicy.patch|sepolicy: Add opluscamera_app DSP exceptions"
@@ -216,7 +216,7 @@ declare -a PATCH_QUEUE=(
 # ── MAIN ────────────────────────────────────────────────────────────
 print_header
 
-log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (15 patches, dependency-ordered) ━━━${NC}"
+log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (14 patches, dependency-ordered) ━━━${NC}"
 log ""
 
 TOTAL=${#PATCH_QUEUE[@]}
