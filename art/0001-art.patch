@@ -1,0 +1,39 @@
+From 27e2a709e9c46d5fc70f999b22a5173cfcb70d86 Mon Sep 17 00:00:00 2001
+From: elpaablo <donopwhile1@gmail.com>
+Date: Sat, 13 Jun 2026 02:14:48 +0100
+Subject: [PATCH] art: drop non-AOSP global -O3
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Revert of 93f3df814f ("art: Optimize the entirity of ART for
+performance"). Global -O3 on ART is an unbenchmarked, non-AOSP perf
+flag on an unusually UB-sensitive codebase (Unsafe/reflection
+field-offset bridges, memory-order-sensitive runtime internals), where
+wrong-code manifests as silent bad data rather than crashes. ART's hot
+paths (assembly stubs, JIT output, dexpreopted oat) don't get faster
+from -O3 in libart's C++, so the upside is ~zero and the risk is
+asymmetric. Stay on AOSP-default optimization flags.
+
+Historical note: this originally landed as a test while investigating
+the OplusCamera protobuf feature-table empty-parse (modeTableSize 0)
+on astonc. That issue was later attributed to a camera userspace/config
+mismatch (fixed by the GLOBAL 12R_400 userspace swap in
+vendor/oplus/camera), not to -O3 — the revert is kept on its own
+merits above.
+---
+ build/Android.bp | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/build/Android.bp b/build/Android.bp
+index 5d8974213f..f69b22e38e 100644
+--- a/build/Android.bp
++++ b/build/Android.bp
+@@ -103,7 +103,6 @@ art_global_defaults {
+         "-Wshadow",
+         "-Wunused",
+         "-fvisibility=protected",
+-        "-O3",
+ 
+         // Warn about thread safety violations with clang.
+         "-Wthread-safety",
