@@ -214,7 +214,7 @@ declare -a PATCH_QUEUE=(
 # ── MAIN ────────────────────────────────────────────────────────────
 print_header
 
-log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (12 patches, dependency-ordered) ━━━${NC}"
+log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (13 patches, dependency-ordered) ━━━${NC}"
 log ""
 
 TOTAL=${#PATCH_QUEUE[@]}
