@@ -310,20 +310,49 @@ log "${BOLD}${BLUE}╚═══════════════════�
 log ""
 log "  Total patches : $TOTAL"
 log "  ${GREEN}Applied       : $APPLIED${NC}"
-log "  ${GREEN}Skipped       : $SKIPPED (already present)${NC}"
+log "  ${GREEN}Skipped       : $SKIPPED${NC}"
 log "  ${YELLOW}Partial       : $PARTIAL${NC}"
 log "  ${RED}Failed        : $FAILED${NC}"
 log ""
-log "${BOLD}  Detailed log  : $LOG_FILE${NC}"
-log ""
 
-if [ "$PARTIAL" -gt 0 ] || [ "$FAILED" -gt 0 ]; then
-    log "${YELLOW}━━━ ITEMS NEEDING ATTENTION ━━━${NC}"
-    grep -E "^(PARTIAL|FAIL)" "$RESULT_FILE" 2>/dev/null | while IFS='|' read -r status repo patch reason; do
-        log "  ${RED}$status${NC} $repo / $patch"
-        log "         $reason"
+# Show applied patches
+if [ "$APPLIED" -gt 0 ]; then
+    log "${GREEN}━━━ APPLIED ━━━${NC}"
+    grep "^OK" "$RESULT_FILE" 2>/dev/null | while IFS='|' read -r status repo commit reason; do
+        log "  ${GREEN}✓${NC} $(echo "$commit" | sed 's/^ *//' | cut -c1-60)"
     done
+    log ""
 fi
 
+# Show skipped patches
+if [ "$SKIPPED" -gt 0 ]; then
+    log "${CYAN}━━━ SKIPPED (already present) ━━━${NC}"
+    grep "^SKIP" "$RESULT_FILE" 2>/dev/null | while IFS='|' read -r status repo commit reason; do
+        log "  ${CYAN}⏭${NC} $(echo "$commit" | sed 's/^ *//' | cut -c1-60)"
+    done
+    log ""
+fi
+
+# Show partial patches
+if [ "$PARTIAL" -gt 0 ]; then
+    log "${YELLOW}━━━ PARTIAL (needs review) ━━━${NC}"
+    grep "^PARTIAL" "$RESULT_FILE" 2>/dev/null | while IFS='|' read -r status repo commit reason; do
+        log "  ${YELLOW}⚠${NC} $(echo "$commit" | sed 's/^ *//' | cut -c1-60)"
+        log "         $reason"
+    done
+    log ""
+fi
+
+# Show failed patches
+if [ "$FAILED" -gt 0 ]; then
+    log "${RED}━━━ FAILED ━━━${NC}"
+    grep "^FAIL" "$RESULT_FILE" 2>/dev/null | while IFS='|' read -r status repo commit reason; do
+        log "  ${RED}✗${NC} $(echo "$commit" | sed 's/^ *//' | cut -c1-60)"
+        log "         $reason"
+    done
+    log ""
+fi
+
+log "${BOLD}  Detailed log  : $LOG_FILE${NC}"
 log ""
 log "${BOLD}${BLUE}══════════════════════════════════════════════════════════════════${NC}"
