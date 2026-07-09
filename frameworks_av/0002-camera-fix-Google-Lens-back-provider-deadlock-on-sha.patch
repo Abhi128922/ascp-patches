@@ -1,7 +1,7 @@
-From de748da181db07d6f3923646a972fc8f6414adb5 Mon Sep 17 00:00:00 2001
+From 184a15843cdb724d1b5e5ba0376a4b46ec7fbe08 Mon Sep 17 00:00:00 2001
 From: elpaablo <donopwhile1@gmail.com>
 Date: Fri, 19 Jun 2026 18:03:26 +0100
-Subject: [PATCH] camera: fix Google-Lens->back provider deadlock on shared
+Subject: [PATCH 2/6] camera: fix Google-Lens->back provider deadlock on shared
  rear sensor
 
 Camera IDs 0 and 2 share the rear main sensor. The HAL declares an
@@ -154,3 +154,6 @@ index 5e7364f0f4..b11fc97a05 100644
              }
          }
  
+-- 
+2.34.1
+

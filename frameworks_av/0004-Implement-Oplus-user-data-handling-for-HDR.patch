@@ -1,7 +1,7 @@
-From 0a038727d4f9a1cd80bfab8e80b244aa5e6a4338 Mon Sep 17 00:00:00 2001
+From 10564d00d9e3e3d374e76bed0e1299c10aea4abb Mon Sep 17 00:00:00 2001
 From: Kill3rEz <98993017+Kill3rEz@users.noreply.github.com>
 Date: Wed, 17 Jun 2026 16:04:28 +0200
-Subject: [PATCH] Implement Oplus user data handling for HDR
+Subject: [PATCH 4/6] Implement Oplus user data handling for HDR
 
 Add OplusUserData parameter handling for HDR metadata passthrough to MPEG4Writer
 ---
@@ -44,3 +44,6 @@ index eb4d05d541..f1688fa15c 100644
  }
  
  status_t StagefrightRecorder::pause() {
+-- 
+2.34.1
+

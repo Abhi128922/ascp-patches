@@ -1,7 +1,8 @@
-From 077683f1991189dfa3c8c8e4a6e6839d8150496c Mon Sep 17 00:00:00 2001
+From a4e5af5ddc85c99338d32784cf1c2a1ce97dab71 Mon Sep 17 00:00:00 2001
 From: elpaablo <donopwhile1@gmail.com>
 Date: Fri, 19 Jun 2026 10:33:08 +0100
-Subject: [PATCH] camera: Relax monotonic timestamp guard for still captures
+Subject: [PATCH 1/6] camera: Relax monotonic timestamp guard for still
+ captures
 
 Oplus still-capture brackets (e.g. front portrait TurboHDR) deliver
 non-monotonic, ZSL-style frames (older shutter/ring timestamps)
@@ -37,3 +38,6 @@ index 094395c797..74f648308c 100644
      nsecs_t readoutTimestamp = request.resultExtras.hasReadoutTimestamp ?
              request.resultExtras.readoutTimestamp : 0;
      collectReturnableOutputBuffers(useHalBufManager, halBufferManagedStreams, listener,
+-- 
+2.34.1
+

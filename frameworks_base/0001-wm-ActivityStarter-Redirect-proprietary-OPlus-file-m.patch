@@ -1,8 +1,8 @@
-From cacbe686a01ae9376bb450524c8f532be137f02e Mon Sep 17 00:00:00 2001
+From 1edb42cc2890df4b57dd207223f6a10bb009d7c0 Mon Sep 17 00:00:00 2001
 From: elpaablo <donopwhile1@gmail.com>
 Date: Sat, 20 Jun 2026 12:50:50 +0100
-Subject: [PATCH] wm: ActivityStarter: Redirect proprietary OPlus file manager
- intents to DocumentsUI
+Subject: [PATCH 1/2] wm: ActivityStarter: Redirect proprietary OPlus file
+ manager intents to DocumentsUI
 
 The OPlus camera/gallery attempts to launch proprietary file managers
 (oplus.intent.action.filemanager.BROWSER_FILE or
@@ -18,10 +18,10 @@ SecurityException from the Gallery app.
  1 file changed, 61 insertions(+)
 
 diff --git a/services/core/java/com/android/server/wm/ActivityStarter.java b/services/core/java/com/android/server/wm/ActivityStarter.java
-index 99612f62d84b..57626fa3e0bd 100644
+index bec59b1147f3..c6850cec0c93 100644
 --- a/services/core/java/com/android/server/wm/ActivityStarter.java
 +++ b/services/core/java/com/android/server/wm/ActivityStarter.java
-@@ -579,6 +579,67 @@ void resolveActivity(ActivityTaskSupervisor supervisor) {
+@@ -586,6 +586,67 @@ class ActivityStarter {
              ephemeralIntent = new Intent(intent);
              // Don't modify the client's object!
              intent = new Intent(intent);
@@ -89,3 +89,6 @@ index 99612f62d84b..57626fa3e0bd 100644
              if (intent.getComponent() != null
                      && !(Intent.ACTION_VIEW.equals(intent.getAction()) && intent.getData() == null)
                      && !Intent.ACTION_INSTALL_INSTANT_APP_PACKAGE.equals(intent.getAction())
+-- 
+2.34.1
+

@@ -1,4 +1,4 @@
-From 66483afc9905ae8e7985d2cb507e4107e7d8bdad Mon Sep 17 00:00:00 2001
+From a1d3c1b0bf9675590ebab59cc57102942456127f Mon Sep 17 00:00:00 2001
 From: elpaablo <donopwhile1@gmail.com>
 Date: Sat, 4 Jul 2026 16:50:39 +0100
 Subject: [PATCH] surfaceflinger: RefreshRateOverlay: optional panel refresh
@@ -179,7 +179,7 @@ index 8da721b169..bd20ac0b5b 100644
  #include <vector>
  
  #include <ftl/flags.h>
-@@ -66,6 +70,14 @@ class RefreshRateOverlay {
+@@ -66,6 +70,14 @@ public:
  private:
      bool initCheck() const;
  
@@ -194,7 +194,7 @@ index 8da721b169..bd20ac0b5b 100644
      using Buffers = std::vector<sp<GraphicBuffer>>;
  
      static Buffers draw(int refreshRate, int renderFps, bool idle, SkColor,
-@@ -97,6 +109,19 @@ class RefreshRateOverlay {
+@@ -97,6 +109,19 @@ private:
      bool mIsVrrIdle = false;
      size_t mFrame = 0;
  
@@ -214,3 +214,6 @@ index 8da721b169..bd20ac0b5b 100644
      const FpsRange mFpsRange; // For color interpolation.
      const ftl::Flags<Features> mFeatures;
  
+-- 
+2.34.1
+
