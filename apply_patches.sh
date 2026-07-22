@@ -189,6 +189,7 @@ declare -a PATCH_QUEUE=(
     "frameworks/native|frameworks_native|0001-surfaceflinger-RefreshRateOverlay-optional-panel-ref.patch|surfaceflinger: RefreshRateOverlay panel refresh rate"
     "frameworks/native|frameworks_native|0002-surfaceflinger-Flag-fullscreen-video-layers-in-HDR-l.patch|surfaceflinger: Flag fullscreen video layers in HDR layer info"
     "frameworks/native|frameworks_native|0003-sensorservice-Load-the-OPLUS-fusion-light-engine-con.patch|sensorservice: Load OPLUS fusion light engine (content-immune ALS)"
+    "frameworks/native|frameworks_native|0004-inputflinger-allow-disabling-input-devices-via-idc.patch|inputflinger: allow disabling input devices via idc"
 
     # frameworks/av (camera service)
     "frameworks/av|frameworks_av|0001-camera-Relax-monotonic-timestamp-guard-for-still-cap.patch|av: Relax monotonic timestamp guard"
@@ -220,7 +221,7 @@ declare -a PATCH_QUEUE=(
 # ── MAIN ────────────────────────────────────────────────────────────
 print_header
 
-log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (19 patches, dependency-ordered) ━━━${NC}"
+log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (20 patches, dependency-ordered) ━━━${NC}"
 log ""
 
 TOTAL=${#PATCH_QUEUE[@]}

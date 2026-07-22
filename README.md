@@ -6,14 +6,15 @@ Universal patches for OPlus camera port and display features on Lunaris AOSP.
 
 Applies camera, display, and sensor patches from AlphaDroid to Lunaris source tree. These patches enable OPlus camera functionality, content-immune ALS, HDR brightness handling, and display features on OnePlus devices.
 
-## Patches Included (19 total)
+## Patches Included (20 total)
 
-### frameworks/native (3 patches)
+### frameworks/native (4 patches)
 | File | Commit | Description |
 |------|--------|-------------|
 | 0001-surfaceflinger-RefreshRateOverlay... | surfaceflinger: RefreshRateOverlay: optional panel refresh rate source |
 | 0002-surfaceflinger-Flag-fullscreen-video... | surfaceflinger: Flag fullscreen video layers in HDR layer info |
 | 0003-sensorservice-Load-the-OPLUS-fusion... | sensorservice: Load the OPLUS fusion light engine (content-immune ALS) |
+| 0004-inputflinger-allow-disabling-input... | inputflinger: allow disabling input devices via idc (Lindroid) |
 
 ### frameworks/av (8 patches)
 | File | Commit | Description |
