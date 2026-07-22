@@ -1,0 +1,419 @@
+From ccbbe7831f40942609c6fa1f9df6e51f1a9a8e1b Mon Sep 17 00:00:00 2001
+From: elpaablo <donopwhile1@gmail.com>
+Date: Mon, 13 Jul 2026 01:09:56 +0100
+Subject: [PATCH 2/2] sensorservice: Load the OPLUS fusion light engine
+ (content-immune ALS)
+
+Port stock ColorOS's SensorServiceExt seam so the prebuilt
+libsensorserviceextimpl.so (OPLUS Fusion Light Sensor Next Gen) can
+register as android.sensor.light and run its CWB screen-emission
+compensation inside our sensorservice:
+
+- OplusFusionExt: dlopen the engine, call createExtendedFactory and
+  drive registration via onSensorFound + registerOplusCustomizeSensor
+  (vtable-index dispatch, no OPLUS headers), keep the SensorDeviceExt
+  for activate routing
+- SensorDevice::activate: drive the fusion ext hook like stock so
+  activateFusionSensor starts the CWB screenshot monitor
+- Export the five AOSP symbols the engine links against and add the
+  three OPLUS helpers (hasSensorRecord, onUidIdleForce,
+  setSensorStateForTemporarily) plus the SensorServiceExtFactory base
+
+Gated on persist.alpha.fusion_light (default off; set by
+vendor/oneplus/fusion). Devices without the prop are unaffected.
+---
+ services/sensorservice/Android.bp         |   2 +
+ services/sensorservice/OplusFusionExt.cpp | 150 ++++++++++++++++++++++
+ services/sensorservice/OplusFusionExt.h   |  52 ++++++++
+ services/sensorservice/SensorDevice.cpp   |  12 ++
+ services/sensorservice/SensorDevice.h     |   4 +-
+ services/sensorservice/SensorInterface.h  |   2 +-
+ services/sensorservice/SensorService.cpp  |  28 ++++
+ services/sensorservice/SensorService.h    |   9 ++
+ 8 files changed, 257 insertions(+), 2 deletions(-)
+ create mode 100644 services/sensorservice/OplusFusionExt.cpp
+ create mode 100644 services/sensorservice/OplusFusionExt.h
+
+diff --git a/services/sensorservice/Android.bp b/services/sensorservice/Android.bp
+index f0eab38a59..ca1dc0cb87 100644
+--- a/services/sensorservice/Android.bp
++++ b/services/sensorservice/Android.bp
+@@ -32,6 +32,7 @@ cc_library {
+         "HidlSensorHalWrapper.cpp",
+         "LimitedAxesImuSensor.cpp",
+         "LinearAccelerationSensor.cpp",
++        "OplusFusionExt.cpp",
+         "OrientationSensor.cpp",
+         "RecentEventLogger.cpp",
+         "RotationVectorSensor.cpp",
+@@ -74,6 +75,7 @@ cc_library {
+         "libbinder_ndk",
+         "libcrypto",
+         "libcutils",
++        "libdl",
+         "libfmq",
+         "libhardware",
+         "libhardware_legacy",
+diff --git a/services/sensorservice/OplusFusionExt.cpp b/services/sensorservice/OplusFusionExt.cpp
+new file mode 100644
+index 0000000000..4a8fae0d14
+--- /dev/null
++++ b/services/sensorservice/OplusFusionExt.cpp
+@@ -0,0 +1,150 @@
++/*
++ * OPLUS fusion light sensor extension loader — see OplusFusionExt.h.
++ */
++#undef LOG_TAG
++#define LOG_TAG "OplusFusionExt"
++
++#include "OplusFusionExt.h"
++
++#include <cutils/properties.h>
++#include <dlfcn.h>
++#include <log/log.h>
++
++namespace android {
++
++// --- base-class symbols the prebuilt engine links against -------------------
++// The engine's ExtendedFactory : SensorServiceExtFactory. Its ctor calls this
++// base ctor (which sets a transient base vtable), then installs its own vtable.
++// The object is vtable-only (8 bytes); we never virtual-dispatch through this
++// declaration (we use raw vtable indices) and never `delete` the factory through
++// a SensorServiceExtFactory* (it's a process-lifetime singleton, intentionally
++// leaked) — so the fact that our base's vtable layout differs from the engine's
++// is irrelevant at runtime.
++SensorServiceExtFactory::SensorServiceExtFactory() {}
++SensorServiceExtFactory::~SensorServiceExtFactory() {}
++
++namespace {
++
++// vtable indices decoded from libsensorserviceextimpl.so (ACE3_400, Project 23801)
++// via llvm-readelf. Functions start at (vtable_symbol + 0x10), one pointer / 8 bytes.
++constexpr int kFactory_createSensorServiceExt = 0;  // -> ISensorServiceExt*
++constexpr int kFactory_createSensorDeviceExt  = 3;  // -> SensorDeviceExt*
++constexpr int kSvcExt_registerOplusCustomizeSensor = 0;  // (sensor_t*, count, SensorService*)
++constexpr int kDevExt_activateFusionSensor    = 5;  // (int handle, bool enabled)
++constexpr int kDevExt_batchFusionSensor       = 6;  // (int handle, long, long)
++
++void* gServiceExt = nullptr;
++void* gDeviceExt = nullptr;
++
++inline void** vtableOf(void* obj) { return *reinterpret_cast<void***>(obj); }
++
++// this-call, no args, returns a pointer
++inline void* callP(void* obj, int idx) {
++    return reinterpret_cast<void* (*)(void*)>(vtableOf(obj)[idx])(obj);
++}
++
++} // namespace
++
++void loadOplusFusionSensors(SensorService* service, const sensor_t* list, size_t count) {
++    if (!property_get_bool("persist.alpha.fusion_light", false)) {
++        return;
++    }
++
++    void* h = dlopen("libsensorserviceextimpl.so", RTLD_NOW | RTLD_LOCAL);
++    if (h == nullptr) {
++        ALOGE("fusion: dlopen(libsensorserviceextimpl.so) failed: %s", dlerror());
++        return;
++    }
++
++    // extern "C" createExtendedFactory() -> ExtendedFactory* (: SensorServiceExtFactory)
++    using CreateFactoryFn = void* (*)();
++    auto createExtendedFactory =
++            reinterpret_cast<CreateFactoryFn>(dlsym(h, "createExtendedFactory"));
++    if (createExtendedFactory == nullptr) {
++        ALOGE("fusion: dlsym(createExtendedFactory) failed: %s", dlerror());
++        return;
++    }
++
++    void* factory = createExtendedFactory();
++    if (factory == nullptr) {
++        ALOGE("fusion: createExtendedFactory returned null");
++        return;
++    }
++
++    // svcExt = factory->createSensorServiceExt();  (factory vtable slot 0)
++    gServiceExt = callP(factory, kFactory_createSensorServiceExt);
++    // devExt = factory->createSensorDeviceExt();    (factory vtable slot 3) — for activate/batch
++    gDeviceExt = callP(factory, kFactory_createSensorDeviceExt);
++    if (gServiceExt == nullptr) {
++        ALOGE("fusion: createSensorServiceExt returned null");
++        return;
++    }
++    // gDeviceExt drives the CWB screenshot compensation monitor via
++    // activateFusionSensor (see oplusFusionActivate + SensorDevice::activate).
++    ALOGI("fusion: createSensorDeviceExt -> %p (%s)", gDeviceExt,
++          gDeviceExt ? "compensation hook ARMED" : "NULL, compensation hook DISABLED");
++
++    // Replicate stock SensorService's per-sensor onSensorFound() callback, which
++    // ColorOS invokes for every enumerated HAL sensor. It drives
++    // OplusSensorServiceUtils::setFusionLightStatue(sensor.type), which sets the
++    // fusion capability flag bytes in the OplusSensorServiceUtils singleton — e.g.
++    // seeing qti.sensor.high_pwm_rgb (type 33171070) sets the "Next Gen" enable byte
++    // [utils+0x3fb]=1. WITHOUT this, those bytes stay zero (setFusionLightStatue is
++    // never called), so SensorDeviceExtImpl::activateFusionSensor() reads [0x3fb]==0
++    // and bails with -ENODEV — meaning OplusFusionLightNextGen::activateInternal (the
++    // CWB screenshot compensation monitor) never starts and the lux stays content-
++    // polluted (R/G/B screen subtraction = 0). The engine's registration gates were
++    // force-patched, but the runtime activate path reads the real flag bytes, so we
++    // must set them the stock way. onSensorFound is not a vtable method and ignores
++    // its `this` (it operates on the process-wide singleton) — resolve it by symbol.
++    using OnSensorFoundFn = void (*)(void*, const sensor_t*, size_t);
++    auto onSensorFound = reinterpret_cast<OnSensorFoundFn>(
++            dlsym(h, "_ZN7android20SensorServiceExtImpl13onSensorFoundEPK8sensor_tm"));
++    if (onSensorFound != nullptr) {
++        for (size_t i = 0; i < count; ++i) {
++            onSensorFound(gServiceExt, list, i);
++        }
++        ALOGI("fusion: onSensorFound driven for %zu sensors (fusion capability flags set)",
++              count);
++    } else {
++        ALOGE("fusion: dlsym(onSensorFound) failed: %s -- fusion flags stay unset, "
++              "compensation will NOT start", dlerror());
++    }
++
++    // svcExt->registerOplusCustomizeSensor(list, count, service);  (ISensorServiceExt slot 0)
++    // Inspects the HAL sensor list, builds the fusion light sensor and registers it
++    // via SensorService::registerSensor (our exported symbol).
++    using RegisterFn = void (*)(void*, const sensor_t*, unsigned long, SensorService*);
++    auto reg = reinterpret_cast<RegisterFn>(
++            vtableOf(gServiceExt)[kSvcExt_registerOplusCustomizeSensor]);
++    reg(gServiceExt, list, static_cast<unsigned long>(count), service);
++
++    ALOGI("fusion: registerOplusCustomizeSensor done (fusion light sensor should now register)");
++}
++
++bool oplusFusionActive() { return gDeviceExt != nullptr; }
++
++void oplusFusionActivate(int handle, bool enabled) {
++    if (gDeviceExt == nullptr) return;
++    // activateFusionSensor returns -ENODEV(-19) for non-fusion handles (no-op) and
++    // drives OplusFusionLightNextGen::activateInternal (start/stop the CWB screenshot
++    // compensation monitor) for the fusion light(0x3e9)/RGB(0x3f0) handles. Log only
++    // the meaningful calls so we can confirm the compensation trigger fires at runtime.
++    int ret = reinterpret_cast<int (*)(void*, int, bool)>(
++            vtableOf(gDeviceExt)[kDevExt_activateFusionSensor])(gDeviceExt, handle, enabled);
++    if (ret != -19) {
++        ALOGI("fusion: activateFusionSensor(handle=0x%x, enabled=%d) -> %d "
++              "(drove NextGen activateInternal / CWB screenshot monitor)",
++              handle, enabled, ret);
++    }
++}
++
++void oplusFusionBatch(int handle, int64_t samplingPeriodNs, int64_t maxBatchReportLatencyNs) {
++    if (gDeviceExt == nullptr) return;
++    reinterpret_cast<void (*)(void*, int, long, long)>(
++            vtableOf(gDeviceExt)[kDevExt_batchFusionSensor])(
++            gDeviceExt, handle, static_cast<long>(samplingPeriodNs),
++            static_cast<long>(maxBatchReportLatencyNs));
++}
++
++} // namespace android
+diff --git a/services/sensorservice/OplusFusionExt.h b/services/sensorservice/OplusFusionExt.h
+new file mode 100644
+index 0000000000..bb93ef4358
+--- /dev/null
++++ b/services/sensorservice/OplusFusionExt.h
+@@ -0,0 +1,52 @@
++/*
++ * OPLUS fusion light sensor extension loader.
++ *
++ * Loads the stock prebuilt system_ext/lib64/libsensorserviceextimpl.so and drives
++ * it to register the "OPLUS Fusion Light Sensor Next Gen" (the content-immune ALS
++ * stock uses as android.sensor.light) — replacing the raw under-display tcs3720.
++ *
++ * We do NOT reconstruct the full OPPO SensorServiceExt C++ interface hierarchy.
++ * We call the engine's virtuals by their exact vtable index, decoded from the
++ * prebuilt via llvm-readelf (see aston-autobrightness.md "FUSION EXT-PORT"):
++ *   createExtendedFactory()                 -> extern "C" entry, returns ExtendedFactory*
++ *   ExtendedFactory::createSensorServiceExt  = factory vtable index 0
++ *   ExtendedFactory::createSensorDeviceExt   = factory vtable index 3
++ *   ISensorServiceExt::registerOplusCustomizeSensor(sensor_t*, count, SensorService*)
++ *                                            = ISensorServiceExt vtable index 0
++ *   SensorDeviceExt::activateFusionSensor(int,bool)   = index 5
++ *   SensorDeviceExt::batchFusionSensor(int,long,long) = index 6
++ *
++ * Gated on persist.alpha.fusion_light (default off) — zero effect on other devices.
++ */
++#pragma once
++
++#include <hardware/sensors.h>
++#include <stddef.h>
++#include <stdint.h>
++
++namespace android {
++
++class SensorService;
++
++// Minimal base class the prebuilt engine's ExtendedFactory derives from. Its only
++// purpose is to provide the ctor/dtor SYMBOLS the engine links against
++// (android::SensorServiceExtFactory::{SensorServiceExtFactory,~}). It is never
++// dispatched through nor deleted via this type (see OplusFusionExt.cpp).
++class __attribute__((visibility("default"))) SensorServiceExtFactory {
++public:
++    SensorServiceExtFactory();
++    virtual ~SensorServiceExtFactory();
++};
++
++// Load + register the OPLUS fusion light sensor. Call once from
++// SensorService::onFirstRef() after the AOSP/HAL sensors are enumerated, passing
++// the HAL sensor list. No-op unless persist.alpha.fusion_light=1.
++void loadOplusFusionSensors(SensorService* service, const sensor_t* list, size_t count);
++
++// Route enable/batch for the fusion sensor to the engine's SensorDeviceExt.
++// Safe no-ops if the engine was not loaded.
++bool oplusFusionActive();
++void oplusFusionActivate(int handle, bool enabled);
++void oplusFusionBatch(int handle, int64_t samplingPeriodNs, int64_t maxBatchReportLatencyNs);
++
++} // namespace android
+diff --git a/services/sensorservice/SensorDevice.cpp b/services/sensorservice/SensorDevice.cpp
+index 9c4d1ace15..6d2efff852 100644
+--- a/services/sensorservice/SensorDevice.cpp
++++ b/services/sensorservice/SensorDevice.cpp
+@@ -36,6 +36,7 @@
+ 
+ #include "AidlSensorHalWrapper.h"
+ #include "HidlSensorHalWrapper.h"
++#include "OplusFusionExt.h"
+ #include "android/hardware/sensors/2.0/types.h"
+ #include "android/hardware/sensors/2.1/types.h"
+ #include "convertV2_1.h"
+@@ -467,6 +468,17 @@ void SensorDevice::autoDisable(void* ident, int handle) {
+ status_t SensorDevice::activate(void* ident, int handle, int enabled) {
+     if (mHalWrapper == nullptr) return NO_INIT;
+ 
++    // Drive the OPLUS fusion SensorDeviceExt hook, mirroring stock ColorOS's
++    // SensorDevice::activate. For the fusion light/RGB handles this starts (or
++    // stops) OplusFusionLightNextGen's CWB screenshot compensation monitor
++    // (activateInternal) — the screen-emission subtraction that makes the ALS
++    // content-immune. The engine filters by handle internally (no-op for every
++    // other sensor), so calling it unconditionally is safe. No-op entirely
++    // unless the fusion engine was loaded (persist.alpha.fusion_light=1).
++    if (oplusFusionActive()) {
++        oplusFusionActivate(handle, enabled != 0);
++    }
++
+     Mutex::Autolock _l(mLock);
+     return activateLocked(ident, handle, enabled);
+ }
+diff --git a/services/sensorservice/SensorDevice.h b/services/sensorservice/SensorDevice.h
+index b7b04b5d00..58ce11a636 100644
+--- a/services/sensorservice/SensorDevice.h
++++ b/services/sensorservice/SensorDevice.h
+@@ -77,7 +77,9 @@ public:
+     ssize_t poll(sensors_event_t* buffer, size_t count);
+     void writeWakeLockHandled(uint32_t count);
+ 
++    __attribute__((visibility("default")))
+     status_t activate(void* ident, int handle, int enabled);
++    __attribute__((visibility("default")))
+     status_t batch(void* ident, int handle, int flags, int64_t samplingPeriodNs,
+                    int64_t maxBatchReportLatencyNs);
+     // Call batch with timeout zero instead of calling setDelay() for newer devices.
+@@ -108,7 +110,7 @@ public:
+ 
+     bool isReconnecting() const { return mHalWrapper->mReconnecting; }
+ 
+-    bool isSensorActive(int handle) const;
++    __attribute__((visibility("default"))) bool isSensorActive(int handle) const;
+ 
+     // To update the BatchParams of a SensorEventConnection when the mic toggle changes its state
+     // while the Sensors Off toggle is on.
+diff --git a/services/sensorservice/SensorInterface.h b/services/sensorservice/SensorInterface.h
+index c446d61f89..20c6c458c3 100644
+--- a/services/sensorservice/SensorInterface.h
++++ b/services/sensorservice/SensorInterface.h
+@@ -93,7 +93,7 @@ public:
+     virtual void autoDisable(void *ident, int handle) override;
+ };
+ 
+-class VirtualSensor : public BaseSensor
++class __attribute__((visibility("default"))) VirtualSensor : public BaseSensor
+ {
+ public:
+     VirtualSensor();
+diff --git a/services/sensorservice/SensorService.cpp b/services/sensorservice/SensorService.cpp
+index c28ef15479..1ede6ebef7 100644
+--- a/services/sensorservice/SensorService.cpp
++++ b/services/sensorservice/SensorService.cpp
+@@ -64,6 +64,7 @@
+ #include "SensorDirectConnection.h"
+ #include "SensorEventAckReceiver.h"
+ #include "SensorEventConnection.h"
++#include "OplusFusionExt.h"
+ #include "SensorFusion.h"
+ #include "SensorInterface.h"
+ #include "SensorRecord.h"
+@@ -437,6 +438,11 @@ void SensorService::onFirstRef() {
+                }
+             }
+ 
++            // OPLUS fusion light sensor: register the content-immune
++            // "OPLUS Fusion Light Sensor Next Gen" (android.sensor.light) from the
++            // stock ext engine. No-op unless persist.alpha.fusion_light=1.
++            loadOplusFusionSensors(this, list, count);
++
+             // Check if the device really supports batching by looking at the FIFO event
+             // counts for each sensor.
+             bool batchingSupported = false;
+@@ -548,6 +554,28 @@ bool SensorService::registerSensor(std::shared_ptr<SensorInterface> s, bool isDe
+     }
+ }
+ 
++// --- OPLUS fusion light ext callbacks (linked by libsensorserviceextimpl.so) ---
++bool SensorService::hasSensorRecord(int handle) {
++    Mutex::Autolock _l(mLock);
++    return mActiveSensors.indexOfKey(handle) >= 0;
++}
++
++void SensorService::onUidIdleForce(unsigned int uid) {
++    // Invoked by the engine's power-management path, not by fusion registration.
++    // Kept as a safe no-op for initial bring-up to avoid unintended side effects;
++    // wire to the real uid-idle handling once registration is validated.
++    ALOGV("onUidIdleForce(uid=%u)", uid);
++    (void)uid;
++}
++
++void SensorService::setSensorStateForTemporarily(int handle, bool shouldEnable) {
++    // Best-effort temporary enable/disable used by the engine's screen-state hooks.
++    // Not on the registration path; kept minimal for the initial bring-up.
++    ALOGV("setSensorStateForTemporarily(handle=%d, enable=%d)", handle, shouldEnable);
++    (void)handle;
++    (void)shouldEnable;
++}
++
+ bool SensorService::registerDynamicSensorLocked(std::shared_ptr<SensorInterface> s, bool isDebug) {
+     return registerSensor(std::move(s), isDebug);
+ }
+diff --git a/services/sensorservice/SensorService.h b/services/sensorservice/SensorService.h
+index de6034a4fe..95dba8efdd 100644
+--- a/services/sensorservice/SensorService.h
++++ b/services/sensorservice/SensorService.h
+@@ -428,13 +428,22 @@ private:
+     String8 getSensorName(int handle) const;
+     String8 getSensorStringType(int handle) const;
+     bool isVirtualSensor(int handle) const;
++    __attribute__((visibility("default")))
+     std::shared_ptr<SensorInterface> getSensorInterfaceFromHandle(int handle) const;
+     int getDeviceIdFromHandle(int handle) const;
+     bool isWakeUpSensor(int type) const;
+     void recordLastValueLocked(sensors_event_t const* buffer, size_t count);
+     static void sortEventBuffer(sensors_event_t* buffer, size_t count);
++    __attribute__((visibility("default")))
+     bool registerSensor(std::shared_ptr<SensorInterface> sensor, bool isDebug = false,
+                         bool isVirtual = false, int deviceId = RuntimeSensor::DEFAULT_DEVICE_ID);
++
++    // OPLUS fusion light ext: symbols the prebuilt libsensorserviceextimpl.so links
++    // against (exported despite -fvisibility=hidden). See OplusFusionExt.cpp.
++    __attribute__((visibility("default"))) bool hasSensorRecord(int handle);
++    __attribute__((visibility("default"))) void onUidIdleForce(unsigned int uid);
++    __attribute__((visibility("default"))) void setSensorStateForTemporarily(int handle,
++                                                                             bool shouldEnable);
+     bool registerVirtualSensor(std::shared_ptr<SensorInterface> sensor, bool isDebug = false);
+     bool registerDynamicSensorLocked(std::shared_ptr<SensorInterface> sensor, bool isDebug = false);
+     bool unregisterDynamicSensorLocked(int handle);
+-- 
+2.43.0
+

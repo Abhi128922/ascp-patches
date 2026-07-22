@@ -187,7 +187,9 @@ apply_patch() {
 declare -a PATCH_QUEUE=(
     # frameworks/native (low-level, apply first)
     "frameworks/native|frameworks_native|0001-surfaceflinger-RefreshRateOverlay-optional-panel-ref.patch|surfaceflinger: RefreshRateOverlay panel refresh rate"
-    
+    "frameworks/native|frameworks_native|0002-surfaceflinger-Flag-fullscreen-video-layers-in-HDR-l.patch|surfaceflinger: Flag fullscreen video layers in HDR layer info"
+    "frameworks/native|frameworks_native|0003-sensorservice-Load-the-OPLUS-fusion-light-engine-con.patch|sensorservice: Load OPLUS fusion light engine (content-immune ALS)"
+
     # frameworks/av (camera service)
     "frameworks/av|frameworks_av|0001-camera-Relax-monotonic-timestamp-guard-for-still-cap.patch|av: Relax monotonic timestamp guard"
     "frameworks/av|frameworks_av|0002-camera-fix-Google-Lens-back-provider-deadlock-on-sha.patch|av: Fix Google-Lens→back provider deadlock"
@@ -195,10 +197,15 @@ declare -a PATCH_QUEUE=(
     "frameworks/av|frameworks_av|0004-Implement-Oplus-user-data-handling-for-HDR.patch|av: Implement Oplus user data handling for HDR"
     "frameworks/av|frameworks_av|0005-Add-kKeyOplusUserData-to-MetaDataBase.h.patch|av: Add kKeyOplusUserData to MetaDataBase.h"
     "frameworks/av|frameworks_av|0006-HDR-FIX.-Enhance-MPEG4Writer-to-handle-Oplus-user-da.patch|av: MPEG4Writer Oplus user data handling"
-    
+    "frameworks/av|frameworks_av|0007-libcameraservice-bypass-timestamp-monotonic-guard-fo.patch|av: Bypass timestamp monotonic guard for custom intent"
+    "frameworks/av|frameworks_av|0008-libcameraservice-gate-timestamp-guard-bypass-behind-.patch|av: Gate timestamp guard bypass behind ro.camera.relax_timestamp_guard"
+
     # frameworks/base
     "frameworks/base|frameworks_base|0001-wm-ActivityStarter-Redirect-proprietary-OPlus-file-m.patch|base: Redirect OPlus file manager"
     "frameworks/base|frameworks_base|0002-base-ImageReader.getOplusHardwareBuffer-OnePlus-came.patch|base: ImageReader.getOplusHardwareBuffer()"
+    "frameworks/base|frameworks_base|0003-Picture-Adjustment-don-t-crash-system-server-if-getP.patch|base: Picture Adjustment don't crash if ranges fail"
+    "frameworks/base|frameworks_base|0004-display-Fullscreen-HDR-brightness-pin-ignore-freefor.patch|base: Fullscreen HDR brightness pin"
+    "frameworks/base|frameworks_base|0005-display-Brightness-floor-for-fullscreen-SDR-video.patch|base: Brightness floor for fullscreen SDR video"
     
     # device/qcom/sepolicy_vndr/sm8550 (sm8550 specific)
     "device/qcom/sepolicy_vndr/sm8550|device_qcom_sepolicy_vndr|0001-sepolicy.patch|sepolicy: Add opluscamera_app DSP exceptions"
@@ -214,7 +221,7 @@ declare -a PATCH_QUEUE=(
 # ── MAIN ────────────────────────────────────────────────────────────
 print_header
 
-log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (13 patches, dependency-ordered) ━━━${NC}"
+log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (20 patches, dependency-ordered) ━━━${NC}"
 log ""
 
 TOTAL=${#PATCH_QUEUE[@]}
