@@ -6,7 +6,7 @@ Universal patches for OPlus camera port and display features on Lunaris AOSP.
 
 Applies camera, display, and sensor patches from AlphaDroid to Lunaris source tree. These patches enable OPlus camera functionality, content-immune ALS, HDR brightness handling, and display features on OnePlus devices.
 
-## Patches Included (20 total)
+## Patches Included (19 total)
 
 ### frameworks/native (3 patches)
 | File | Commit | Description |
@@ -27,14 +27,13 @@ Applies camera, display, and sensor patches from AlphaDroid to Lunaris source tr
 | 0007-libcameraservice-bypass-timestamp... | Bypass timestamp monotonic guard for custom intent |
 | 0008-libcameraservice-gate-timestamp-g... | Gate timestamp guard bypass behind ro.camera.relax_timestamp_guard |
 
-### frameworks/base (5 patches)
+### frameworks/base (4 patches)
 | File | Commit | Description |
 |------|--------|-------------|
 | 0001-wm-ActivityStarter-Redirect-propr... | Redirect proprietary OPlus file manager intents to DocumentsUI |
 | 0002-base-ImageReader.getOplusHardware... | ImageReader.getOplusHardwareBuffer() — OnePlus camera no-cleaner HardwareBuffer |
-| 0003-Picture-Adjustment-don-t-crash... | Picture Adjustment: don't crash system server if getPictureAdjustmentRanges fails |
-| 0004-display-Fullscreen-HDR-brightness... | Fullscreen HDR brightness pin (ignore freeform/PiP, no SS crash) |
-| 0005-display-Brightness-floor-for-full... | Brightness floor for fullscreen SDR video |
+| 0003-display-Fullscreen-HDR-brightness... | Fullscreen HDR brightness pin (ignore freeform/PiP, no SS crash) |
+| 0004-display-Brightness-floor-for-full... | Brightness floor for fullscreen SDR video |
 
 ### device/qcom/sepolicy_vndr/sm8550 (1 patch)
 | File | Commit | Description |

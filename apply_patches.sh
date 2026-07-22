@@ -203,9 +203,8 @@ declare -a PATCH_QUEUE=(
     # frameworks/base
     "frameworks/base|frameworks_base|0001-wm-ActivityStarter-Redirect-proprietary-OPlus-file-m.patch|base: Redirect OPlus file manager"
     "frameworks/base|frameworks_base|0002-base-ImageReader.getOplusHardwareBuffer-OnePlus-came.patch|base: ImageReader.getOplusHardwareBuffer()"
-    "frameworks/base|frameworks_base|0003-Picture-Adjustment-don-t-crash-system-server-if-getP.patch|base: Picture Adjustment don't crash if ranges fail"
-    "frameworks/base|frameworks_base|0004-display-Fullscreen-HDR-brightness-pin-ignore-freefor.patch|base: Fullscreen HDR brightness pin"
-    "frameworks/base|frameworks_base|0005-display-Brightness-floor-for-fullscreen-SDR-video.patch|base: Brightness floor for fullscreen SDR video"
+    "frameworks/base|frameworks_base|0003-display-Fullscreen-HDR-brightness-pin-ignore-freefor.patch|base: Fullscreen HDR brightness pin"
+    "frameworks/base|frameworks_base|0004-display-Brightness-floor-for-fullscreen-SDR-video.patch|base: Brightness floor for fullscreen SDR video"
     
     # device/qcom/sepolicy_vndr/sm8550 (sm8550 specific)
     "device/qcom/sepolicy_vndr/sm8550|device_qcom_sepolicy_vndr|0001-sepolicy.patch|sepolicy: Add opluscamera_app DSP exceptions"
@@ -221,7 +220,7 @@ declare -a PATCH_QUEUE=(
 # ── MAIN ────────────────────────────────────────────────────────────
 print_header
 
-log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (20 patches, dependency-ordered) ━━━${NC}"
+log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (19 patches, dependency-ordered) ━━━${NC}"
 log ""
 
 TOTAL=${#PATCH_QUEUE[@]}
