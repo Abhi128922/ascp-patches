@@ -2,7 +2,7 @@
 # Universal Patch Applicator v4 - Final Version with Correct Paths
 # Applies OPlus camera patches to Lunaris Android source tree
 # Usage: From ROM source root: bash /path/to/apply_patches.sh .
-set -e
+set +e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATCH_DIR="$SCRIPT_DIR"
