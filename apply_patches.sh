@@ -183,19 +183,9 @@ apply_patch() {
 }
 
 # ── PATCH QUEUE (category order) ──────────────────────────────────
-# Patches applied in category order: LTPO → Auto Brightness → OOS Camera
+# Patches applied in category order: OOS Camera → LTPO → Auto Brightness
 # Path format: actual_android_source_path|patch_dir_name|patch_file|description
 declare -a PATCH_QUEUE=(
-    # ── CATEGORY: LTPO (display refresh rate / panel control) ──────
-    "frameworks/native|frameworks_native|0001-surfaceflinger-RefreshRateOverlay-optional-panel-ref.patch|LTPO: RefreshRateOverlay panel refresh rate"
-    "frameworks/native|frameworks_native|0002-surfaceflinger-Flag-fullscreen-video-layers-in-HDR-l.patch|LTPO: Flag fullscreen video layers in HDR layer info"
-    "system/sepolicy|system_sepolicy|0001-sepolicy.patch|LTPO: Label panel_refresh_rate_node property"
-
-    # ── CATEGORY: Auto Brightness (Fusion Light Sensor / ALS) ─────
-    "frameworks/native|frameworks_native|0003-sensorservice-Load-the-OPLUS-fusion-light-engine-con.patch|Auto-Brightness: Load OPLUS fusion light engine (content-immune ALS)"
-    "frameworks/base|frameworks_base|0003-display-Fullscreen-HDR-brightness-pin-ignore-freefor.patch|Auto-Brightness: Fullscreen HDR brightness pin"
-    "frameworks/base|frameworks_base|0004-display-Brightness-floor-for-fullscreen-SDR-video.patch|Auto-Brightness: Brightness floor for fullscreen SDR video"
-
     # ── CATEGORY: OOS Camera (OPlus camera functionality) ─────────
     "frameworks/av|frameworks_av|0001-camera-Relax-monotonic-timestamp-guard-for-still-cap.patch|Camera: Relax monotonic timestamp guard"
     "frameworks/av|frameworks_av|0002-camera-fix-Google-Lens-back-provider-deadlock-on-sha.patch|Camera: Fix Google-Lens→back provider deadlock"
@@ -210,6 +200,16 @@ declare -a PATCH_QUEUE=(
     "art|art|0001-art.patch|Camera: drop non-AOSP global -O3"
     "build/soong|build_soong|0001-build-soong.patch|Camera: Whitelist OPlus framework packages"
     "device/qcom/sepolicy_vndr/sm8550|device_qcom_sepolicy_vndr|0001-sepolicy.patch|Camera: Add opluscamera_app DSP exceptions"
+
+    # ── CATEGORY: LTPO (display refresh rate / panel control) ──────
+    "frameworks/native|frameworks_native|0001-surfaceflinger-RefreshRateOverlay-optional-panel-ref.patch|LTPO: RefreshRateOverlay panel refresh rate"
+    "frameworks/native|frameworks_native|0002-surfaceflinger-Flag-fullscreen-video-layers-in-HDR-l.patch|LTPO: Flag fullscreen video layers in HDR layer info"
+    "system/sepolicy|system_sepolicy|0001-sepolicy.patch|LTPO: Label panel_refresh_rate_node property"
+
+    # ── CATEGORY: Auto Brightness (Fusion Light Sensor / ALS) ─────
+    "frameworks/native|frameworks_native|0003-sensorservice-Load-the-OPLUS-fusion-light-engine-con.patch|Auto-Brightness: Load OPLUS fusion light engine (content-immune ALS)"
+    "frameworks/base|frameworks_base|0003-display-Fullscreen-HDR-brightness-pin-ignore-freefor.patch|Auto-Brightness: Fullscreen HDR brightness pin"
+    "frameworks/base|frameworks_base|0004-display-Brightness-floor-for-fullscreen-SDR-video.patch|Auto-Brightness: Brightness floor for fullscreen SDR video"
     
     # system sepolicy
     "system/sepolicy|system_sepolicy|0001-sepolicy.patch|sepolicy: Label panel_refresh_rate_node property"
