@@ -182,36 +182,34 @@ apply_patch() {
     return 2
 }
 
-# ── PATCH QUEUE (dependency order) ──────────────────────────────────
+# ── PATCH QUEUE (category order) ──────────────────────────────────
+# Patches applied in category order: LTPO → Auto Brightness → OOS Camera
 # Path format: actual_android_source_path|patch_dir_name|patch_file|description
 declare -a PATCH_QUEUE=(
-    # frameworks/native (low-level, apply first)
-    "frameworks/native|frameworks_native|0001-surfaceflinger-RefreshRateOverlay-optional-panel-ref.patch|surfaceflinger: RefreshRateOverlay panel refresh rate"
-    "frameworks/native|frameworks_native|0002-surfaceflinger-Flag-fullscreen-video-layers-in-HDR-l.patch|surfaceflinger: Flag fullscreen video layers in HDR layer info"
-    "frameworks/native|frameworks_native|0003-sensorservice-Load-the-OPLUS-fusion-light-engine-con.patch|sensorservice: Load OPLUS fusion light engine (content-immune ALS)"
+    # ── CATEGORY: LTPO (display refresh rate / panel control) ──────
+    "frameworks/native|frameworks_native|0001-surfaceflinger-RefreshRateOverlay-optional-panel-ref.patch|LTPO: RefreshRateOverlay panel refresh rate"
+    "frameworks/native|frameworks_native|0002-surfaceflinger-Flag-fullscreen-video-layers-in-HDR-l.patch|LTPO: Flag fullscreen video layers in HDR layer info"
+    "system/sepolicy|system_sepolicy|0001-sepolicy.patch|LTPO: Label panel_refresh_rate_node property"
 
-    # frameworks/av (camera service)
-    "frameworks/av|frameworks_av|0001-camera-Relax-monotonic-timestamp-guard-for-still-cap.patch|av: Relax monotonic timestamp guard"
-    "frameworks/av|frameworks_av|0002-camera-fix-Google-Lens-back-provider-deadlock-on-sha.patch|av: Fix Google-Lens→back provider deadlock"
-    "frameworks/av|frameworks_av|0003-Add-Oplus-user-data-member-to-StagefrightRecorder.patch|av: Add Oplus user data to StagefrightRecorder.h"
-    "frameworks/av|frameworks_av|0004-Implement-Oplus-user-data-handling-for-HDR.patch|av: Implement Oplus user data handling for HDR"
-    "frameworks/av|frameworks_av|0005-Add-kKeyOplusUserData-to-MetaDataBase.h.patch|av: Add kKeyOplusUserData to MetaDataBase.h"
-    "frameworks/av|frameworks_av|0006-HDR-FIX.-Enhance-MPEG4Writer-to-handle-Oplus-user-da.patch|av: MPEG4Writer Oplus user data handling"
-    "frameworks/av|frameworks_av|0007-libcameraservice-bypass-timestamp-monotonic-guard-fo.patch|av: Bypass timestamp monotonic guard for custom intent"
-    "frameworks/av|frameworks_av|0008-libcameraservice-gate-timestamp-guard-bypass-behind-.patch|av: Gate timestamp guard bypass behind ro.camera.relax_timestamp_guard"
+    # ── CATEGORY: Auto Brightness (Fusion Light Sensor / ALS) ─────
+    "frameworks/native|frameworks_native|0003-sensorservice-Load-the-OPLUS-fusion-light-engine-con.patch|Auto-Brightness: Load OPLUS fusion light engine (content-immune ALS)"
+    "frameworks/base|frameworks_base|0003-display-Fullscreen-HDR-brightness-pin-ignore-freefor.patch|Auto-Brightness: Fullscreen HDR brightness pin"
+    "frameworks/base|frameworks_base|0004-display-Brightness-floor-for-fullscreen-SDR-video.patch|Auto-Brightness: Brightness floor for fullscreen SDR video"
 
-    # frameworks/base
-    "frameworks/base|frameworks_base|0001-wm-ActivityStarter-Redirect-proprietary-OPlus-file-m.patch|base: Redirect OPlus file manager"
-    "frameworks/base|frameworks_base|0002-base-ImageReader.getOplusHardwareBuffer-OnePlus-came.patch|base: ImageReader.getOplusHardwareBuffer()"
-    "frameworks/base|frameworks_base|0003-display-Fullscreen-HDR-brightness-pin-ignore-freefor.patch|base: Fullscreen HDR brightness pin"
-    "frameworks/base|frameworks_base|0004-display-Brightness-floor-for-fullscreen-SDR-video.patch|base: Brightness floor for fullscreen SDR video"
-    
-    # device/qcom/sepolicy_vndr/sm8550 (sm8550 specific)
-    "device/qcom/sepolicy_vndr/sm8550|device_qcom_sepolicy_vndr|0001-sepolicy.patch|sepolicy: Add opluscamera_app DSP exceptions"
-    
-    # build system
-    "art|art|0001-art.patch|art: drop non-AOSP global -O3"
-    "build/soong|build_soong|0001-build-soong.patch|build: Whitelist OPlus framework packages"
+    # ── CATEGORY: OOS Camera (OPlus camera functionality) ─────────
+    "frameworks/av|frameworks_av|0001-camera-Relax-monotonic-timestamp-guard-for-still-cap.patch|Camera: Relax monotonic timestamp guard"
+    "frameworks/av|frameworks_av|0002-camera-fix-Google-Lens-back-provider-deadlock-on-sha.patch|Camera: Fix Google-Lens→back provider deadlock"
+    "frameworks/av|frameworks_av|0003-Add-Oplus-user-data-member-to-StagefrightRecorder.patch|Camera: Add Oplus user data to StagefrightRecorder.h"
+    "frameworks/av|frameworks_av|0004-Implement-Oplus-user-data-handling-for-HDR.patch|Camera: Implement Oplus user data handling for HDR"
+    "frameworks/av|frameworks_av|0005-Add-kKeyOplusUserData-to-MetaDataBase.h.patch|Camera: Add kKeyOplusUserData to MetaDataBase.h"
+    "frameworks/av|frameworks_av|0006-HDR-FIX.-Enhance-MPEG4Writer-to-handle-Oplus-user-da.patch|Camera: MPEG4Writer Oplus user data handling"
+    "frameworks/av|frameworks_av|0007-libcameraservice-bypass-timestamp-monotonic-guard-fo.patch|Camera: Bypass timestamp monotonic guard for custom intent"
+    "frameworks/av|frameworks_av|0008-libcameraservice-gate-timestamp-guard-bypass-behind-.patch|Camera: Gate timestamp guard bypass behind ro.camera.relax_timestamp_guard"
+    "frameworks/base|frameworks_base|0001-wm-ActivityStarter-Redirect-proprietary-OPlus-file-m.patch|Camera: Redirect OPlus file manager"
+    "frameworks/base|frameworks_base|0002-base-ImageReader.getOplusHardwareBuffer-OnePlus-came.patch|Camera: ImageReader.getOplusHardwareBuffer()"
+    "art|art|0001-art.patch|Camera: drop non-AOSP global -O3"
+    "build/soong|build_soong|0001-build-soong.patch|Camera: Whitelist OPlus framework packages"
+    "device/qcom/sepolicy_vndr/sm8550|device_qcom_sepolicy_vndr|0001-sepolicy.patch|Camera: Add opluscamera_app DSP exceptions"
     
     # system sepolicy
     "system/sepolicy|system_sepolicy|0001-sepolicy.patch|sepolicy: Label panel_refresh_rate_node property"
@@ -220,7 +218,7 @@ declare -a PATCH_QUEUE=(
 # ── MAIN ────────────────────────────────────────────────────────────
 print_header
 
-log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (19 patches, dependency-ordered) ━━━${NC}"
+log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (19 patches, category-ordered) ━━━${NC}"
 log ""
 
 TOTAL=${#PATCH_QUEUE[@]}
