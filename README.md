@@ -2,7 +2,7 @@
 
 OPlus camera, display, and sensor patches for Lunaris AOSP. Organized by category for clean application.
 
-## Categories (19 patches total)
+## Categories (20 patches total)
 
 ### OOS Camera — OPlus Camera Functionality (13 patches)
 
@@ -30,13 +30,14 @@ OPlus camera, display, and sensor patches for Lunaris AOSP. Organized by categor
 | 15 | frameworks/native | 0002-surfaceflinger-Flag-fullscreen-video-layers-in-HDR-l.patch | surfaceflinger: Flag fullscreen video layers in HDR layer info |
 | 16 | system/sepolicy | 0001-sepolicy.patch | Label ro.surface_flinger.panel_refresh_rate_node as surfaceflinger_prop |
 
-### Auto Brightness — Fusion Light Sensor / ALS (3 patches)
+### Auto Brightness — Fusion Light Sensor / ALS (4 patches)
 
 | # | Repo | Patch | Description |
 |---|------|-------|-------------|
 | 17 | frameworks/native | 0003-sensorservice-Load-the-OPLUS-fusion-light-engine-con.patch | sensorservice: Load the OPLUS fusion light engine (content-immune ALS) |
 | 18 | frameworks/base | 0003-display-Fullscreen-HDR-brightness-pin-ignore-freefor.patch | display: Fullscreen HDR brightness pin (ignore freeform/PiP, no SS crash) |
 | 19 | frameworks/base | 0004-display-Brightness-floor-for-fullscreen-SDR-video.patch | display: Brightness floor for fullscreen SDR video |
+| 20 | frameworks/base | 0005-display-Drop-fusion-ALS-hard-zero-samples-in-auto-br.patch | display: Drop fusion ALS hard-zero samples in auto-brightness |
 
 ## Application Order
 

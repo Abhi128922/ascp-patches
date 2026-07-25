@@ -210,6 +210,7 @@ declare -a PATCH_QUEUE=(
     "frameworks/native|frameworks_native|0003-sensorservice-Load-the-OPLUS-fusion-light-engine-con.patch|Auto-Brightness: Load OPLUS fusion light engine (content-immune ALS)"
     "frameworks/base|frameworks_base|0003-display-Fullscreen-HDR-brightness-pin-ignore-freefor.patch|Auto-Brightness: Fullscreen HDR brightness pin"
     "frameworks/base|frameworks_base|0004-display-Brightness-floor-for-fullscreen-SDR-video.patch|Auto-Brightness: Brightness floor for fullscreen SDR video"
+    "frameworks/base|frameworks_base|0005-display-Drop-fusion-ALS-hard-zero-samples-in-auto-br.patch|Auto-Brightness: Drop fusion ALS hard-zero samples"
     
     # system sepolicy
     "system/sepolicy|system_sepolicy|0001-sepolicy.patch|sepolicy: Label panel_refresh_rate_node property"
@@ -218,7 +219,7 @@ declare -a PATCH_QUEUE=(
 # ── MAIN ────────────────────────────────────────────────────────────
 print_header
 
-log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (19 patches, category-ordered) ━━━${NC}"
+log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (20 patches, category-ordered) ━━━${NC}"
 log ""
 
 TOTAL=${#PATCH_QUEUE[@]}
