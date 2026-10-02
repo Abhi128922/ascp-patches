@@ -1,0 +1,73 @@
+From a6dd4392c7f32b95e8cad781eee5a825b7c57821 Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Fri, 2 Oct 2026 17:09:34 +0000
+Subject: [PATCH] vendor: generate_json_build_info: Adapt for custom index and
+ enable for homemade builds
+
+---
+ tools/generate_json_build_info.sh | 24 +++++++++++-------------
+ 1 file changed, 11 insertions(+), 13 deletions(-)
+
+diff --git a/tools/generate_json_build_info.sh b/tools/generate_json_build_info.sh
+index f6fa3f2..2686e98 100755
+--- a/tools/generate_json_build_info.sh
++++ b/tools/generate_json_build_info.sh
+@@ -38,7 +38,7 @@ file_path=$1
+ file_dir=$(dirname "$file_path")
+ file_name=$(basename "$file_path")
+ device_code=$(echo "${file_name}" | cut -d'-' -f4)
+-base_url="https://downloads.yaaprom.org"
++base_url="https://files.gauravbuilds.xyz/release"
+ 
+ if ! [ -f "$file_path" ]; then
+     echo -e "${RED}File does not exist${NC}"
+@@ -47,18 +47,14 @@ if ! [ -f "$file_path" ]; then
+     fi
+ fi
+ 
+-# only generate for official builds. unless forced with 'export FORCE_JSON=1'
++# Always generate json unless explicitly skipped with SKIP_JSON=1
+ isOfficial=1
+-if [[ $FORCE_JSON == 1 ]]; then
+-    echo -e "${GREEN}Forced generation of json${NC}"
+-else
+-    if [[ $file_name == *"${NON_OFFICIAL_TAG}"* ]]; then
+-        isOfficial=0
+-    fi
++if [[ $SKIP_JSON == 1 ]]; then
++    isOfficial=0
+ fi
+ 
+ if [[ $isOfficial != 1 ]]; then
+-    echo -e "${YELLOW}Skipped generating json for a non-official build${NC}"
++    echo -e "${YELLOW}Skipped generating json${NC}"
+     if ! return 0 &> /dev/null; then
+         exit 0
+     fi
+@@ -75,8 +71,8 @@ if payload_properties=$(unzip -p "$file_path" payload_properties.txt); then
+ fi
+ # get date from props
+ datetime=$(grep "ro.build.date.utc" "${file_dir}/system/build.prop" | cut -d '=' -f 2)
+-file_url="${base_url}/${device_code}/${file_name}"
+-[[ ! $TARGET_BUILD_GAPPS ]] && file_url="${base_url}/${device_code}/vanilla/${file_name}"
++file_url="${base_url}/${device_code}/Yaap/${file_name}"
++sha256=$(cat "${file_path}.sha256sum" 2>/dev/null | cut -d ' ' -f 1)
+ 
+ {
+     echo    "{"
+@@ -84,8 +80,10 @@ file_url="${base_url}/${device_code}/${file_name}"
+     echo    "    {"
+     echo    "      \"datetime\": ${datetime},"
+     echo    "      \"filename\": \"${file_name}\","
+-    echo    "      \"url\": \"${file_url}\","
+-    echo -n "      \"sha256url\": \"${file_url}.sha256sum\""
++    if [[ -n "$sha256" ]]; then
++        echo "      \"id\": \"${sha256}\","
++    fi
++    echo -n "      \"url\": \"${file_url}\""
+ } > "${file_path}.json"
+ if [[ $isPayload == 1 ]]; then
+     {
+-- 
+2.43.0
+
