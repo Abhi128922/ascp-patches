@@ -1,0 +1,259 @@
+From 5052f40c7b9d1938aba9fa11eb71203753e50cfc Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Fri, 2 Oct 2026 07:04:03 +0000
+Subject: [PATCH 10/11] libcameraservice: Add camera extension infrastructure
+ and OEM prerequisites
+
+Aligns camera extension and vendor-tag injection support with A17 Evolution X:
+- Android.bp: Wire CAMERA_PACKAGE_NAME and needs_client_info_lib soong configs in cameraserver and libcameraservice
+- SessionConfigurationUtils: Allow privileged apps to bypass rounding for Y8 and Y16 stream formats
+- CameraDeviceClient: Bypass isSensorPixelModeConsistent for privileged clients and add getCaptureRequestU8OverridesExt hook
+- CameraProviderExtension: Add default weak implementation of getCaptureRequestU8OverridesExt
+- Camera3Device: Signal mRequestSignal in flush() for result drain optimization
+- CameraServiceExtFactory: Latch ensureLoaded() to load extension at most once and reduce log spam
+---
+ camera/cameraserver/Android.bp                | 15 ++++++--
+ services/camera/libcameraservice/Android.bp   | 22 ++++++++++++
+ .../api2/CameraDeviceClient.cpp               | 34 ++++++++++++++++---
+ .../common/CameraProviderExtension.cpp        |  6 ++++
+ .../common/CameraProviderExtension.h          |  5 +++
+ .../device3/Camera3Device.cpp                 |  8 ++++-
+ .../ext/CameraServiceExtFactory.cpp           |  6 ++--
+ .../utils/SessionConfigurationUtils.cpp       |  3 +-
+ 8 files changed, 89 insertions(+), 10 deletions(-)
+
+diff --git a/camera/cameraserver/Android.bp b/camera/cameraserver/Android.bp
+index d0df90b833..fd5867c426 100644
+--- a/camera/cameraserver/Android.bp
++++ b/camera/cameraserver/Android.bp
+@@ -52,7 +52,15 @@ cc_binary {
+         "android.hardware.camera.device@1.0",
+         "android.hardware.camera.device@3.2",
+         "android.hardware.camera.device@3.4",
+-    ],
++    ] + select(soong_config_variable("camera", "needs_client_info_lib"), {
++        true: ["//hardware/oneplus:vendor.oneplus.hardware.camera@1.0"],
++        false: [],
++        default: [],
++    }) + select(soong_config_variable("camera", "needs_client_info_lib_oplus"), {
++        true: ["vendor.oplus.hardware.cameraMDM@2.0"],
++        false: [],
++        default: [],
++    }),
+     static_libs: [
+         "libcameraservice",
+     ],
+@@ -62,7 +70,10 @@ cc_binary {
+         "-Wextra",
+         "-Werror",
+         "-Wno-unused-parameter",
+-    ],
++    ] + select(soong_config_variable("camera", "package_name"), {
++        any @ flag_val: ["-DCAMERA_PACKAGE_NAME=\"" + flag_val + "\""],
++        default: [],
++    }),
+ 
+     init_rc: ["cameraserver.rc"],
+ 
+diff --git a/services/camera/libcameraservice/Android.bp b/services/camera/libcameraservice/Android.bp
+index 59856df601..3bae8f7816 100644
+--- a/services/camera/libcameraservice/Android.bp
++++ b/services/camera/libcameraservice/Android.bp
+@@ -242,6 +242,17 @@ cc_library {
+         "frameworks/av/services/camera/libcameraservice/ext/include",
+     ],
+ 
++    shared_libs: [
++    ] + select(soong_config_variable("camera", "needs_client_info_lib"), {
++        true: ["//hardware/oneplus:vendor.oneplus.hardware.camera@1.0"],
++        false: [],
++        default: [],
++    }) + select(soong_config_variable("camera", "needs_client_info_lib_oplus"), {
++        true: ["vendor.oplus.hardware.cameraMDM@2.0"],
++        false: [],
++        default: [],
++    }),
++
+     export_include_dirs: ["."],
+ 
+     cflags: [
+@@ -255,6 +266,17 @@ cc_library {
+     }) + select(soong_config_variable("cameraservice", "bypass_pixelmode"), {
+         any @ value: ["-DBYPASS_PIXELMODE"],
+         default: [],
++    }) + select(soong_config_variable("camera", "package_name"), {
++        any @ flag_val: ["-DCAMERA_PACKAGE_NAME=\"" + flag_val + "\""],
++        default: [],
++    }) + select(soong_config_variable("camera", "needs_client_info_lib"), {
++        true: ["-DCAMERA_NEEDS_CLIENT_INFO_LIB"],
++        false: [],
++        default: [],
++    }) + select(soong_config_variable("camera", "needs_client_info_lib_oplus"), {
++        true: ["-DCAMERA_NEEDS_CLIENT_INFO_LIB_OPLUS"],
++        false: [],
++        default: [],
+     }),
+ }
+ 
+diff --git a/services/camera/libcameraservice/api2/CameraDeviceClient.cpp b/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
+index 3a8a66bc12..26cdb91cdf 100644
+--- a/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
++++ b/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
+@@ -28,6 +28,7 @@
+ #include <camera/CameraUtils.h>
+ #include <camera/StringUtils.h>
+ #include <camera/camera2/CaptureRequest.h>
++#include <camera/VendorTagDescriptor.h>
+ #include <com_android_internal_camera_flags.h>
+ #include <cutils/properties.h>
+ #include <gui/Surface.h>
+@@ -36,6 +37,7 @@
+ #include <utils/Trace.h>
+ 
+ #include "common/CameraDeviceBase.h"
++#include "common/CameraProviderExtension.h"
+ #include "device3/Camera3Device.h"
+ #include "device3/Camera3OutputStream.h"
+ #include "api2/CameraDeviceClient.h"
+@@ -629,11 +631,7 @@ binder::Status CameraDeviceClient::submitRequestList(
+             if (streamIdSetIt != mHighResolutionCameraIdToStreamIdSet.end()) {
+                 std::list<int> streamIdsUsedInRequest = getIntersection(streamIdSetIt->second,
+                         outputStreamIds);
+-#ifndef BYPASS_PIXELMODE
+-                if (!request.mIsReprocess &&
+-#else
+                 if (!request.mIsReprocess && !mPrivilegedClient &&
+-#endif
+                         !isSensorPixelModeConsistent(streamIdsUsedInRequest, it.settings)) {
+                      ALOGE("%s: Camera %s: Request settings CONTROL_SENSOR_PIXEL_MODE not "
+                             "consistent with configured streams. Rejecting request.",
+@@ -684,6 +682,34 @@ binder::Status CameraDeviceClient::submitRequestList(
+             }
+         }
+ 
++        const auto requestOverrides =
++                getCaptureRequestU8OverridesExt(mCameraIdStr, getPackageName());
++        if (!requestOverrides.empty()) {
++            sp<VendorTagDescriptor> vendorTags;
++            sp<VendorTagDescriptorCache> vendorTagCache =
++                    VendorTagDescriptorCache::getGlobalVendorTagCache();
++            if (vendorTagCache != nullptr) {
++                vendorTagCache->getVendorTagDescriptor(mDevice->getVendorTagId(), &vendorTags);
++            }
++
++            for (const auto& [tagName, value] : requestOverrides) {
++                uint32_t tag;
++                status_t overrideStatus =
++                        CameraMetadata::getTagFromName(tagName.c_str(), vendorTags.get(), &tag);
++                if (overrideStatus != OK) {
++                    ALOGW("%s: Camera %s: Could not resolve request override %s",
++                            __FUNCTION__, mCameraIdStr.c_str(), tagName.c_str());
++                    continue;
++                }
++                overrideStatus = physicalSettingsList.begin()->metadata.update(tag, &value, 1);
++                if (overrideStatus != OK) {
++                    ALOGW("%s: Camera %s: Could not apply request override %s: %s (%d)",
++                            __FUNCTION__, mCameraIdStr.c_str(), tagName.c_str(),
++                            strerror(-overrideStatus), overrideStatus);
++                }
++            }
++        }
++
+         if (!enforceRequestPermissions(physicalSettingsList.begin()->metadata)) {
+             // Callee logs
+             return STATUS_ERROR(CameraService::ERROR_PERMISSION_DENIED,
+diff --git a/services/camera/libcameraservice/common/CameraProviderExtension.cpp b/services/camera/libcameraservice/common/CameraProviderExtension.cpp
+index 65435a4d23..f83fdb19bc 100644
+--- a/services/camera/libcameraservice/common/CameraProviderExtension.cpp
++++ b/services/camera/libcameraservice/common/CameraProviderExtension.cpp
+@@ -37,3 +37,9 @@ __attribute__((weak)) int32_t getTorchStrengthLevelExt() {
+ __attribute__((weak)) void setTorchStrengthLevelExt(__unused int32_t torchStrength, __unused bool enabled) {
+     // Nothing
+ }
++
++__attribute__((weak)) std::vector<std::pair<std::string, uint8_t>>
++getCaptureRequestU8OverridesExt(__unused const std::string& cameraId,
++        __unused const std::string& packageName) {
++    return {};
++}
+diff --git a/services/camera/libcameraservice/common/CameraProviderExtension.h b/services/camera/libcameraservice/common/CameraProviderExtension.h
+index 693400b759..e2c324a9ce 100644
+--- a/services/camera/libcameraservice/common/CameraProviderExtension.h
++++ b/services/camera/libcameraservice/common/CameraProviderExtension.h
+@@ -15,9 +15,14 @@
+  */
+ 
+ #include <stdint.h>
++#include <string>
++#include <utility>
++#include <vector>
+ 
+ extern bool supportsTorchStrengthControlExt();
+ extern int32_t getTorchDefaultStrengthLevelExt();
+ extern int32_t getTorchMaxStrengthLevelExt();
+ extern int32_t getTorchStrengthLevelExt();
+ extern void setTorchStrengthLevelExt(int32_t torchStrength, bool enabled);
++extern std::vector<std::pair<std::string, uint8_t>> getCaptureRequestU8OverridesExt(
++        const std::string& cameraId, const std::string& packageName);
+diff --git a/services/camera/libcameraservice/device3/Camera3Device.cpp b/services/camera/libcameraservice/device3/Camera3Device.cpp
+index bedbf0e115..5419e6ef90 100644
+--- a/services/camera/libcameraservice/device3/Camera3Device.cpp
++++ b/services/camera/libcameraservice/device3/Camera3Device.cpp
+@@ -3632,9 +3632,15 @@ status_t Camera3Device::RequestThread::clear(
+ 
+ status_t Camera3Device::RequestThread::flush() {
+     ATRACE_CALL();
++    status_t flush_status;
+     Mutex::Autolock l(mFlushLock);
+ 
+-    return mInterface->flush();
++    flush_status = mInterface->flush();
++    // We have completed flush, signal RequestThread::waitForNextRequestLocked() to no longer wait for
++    // new requests
++    mRequestSignal.signal();
++
++    return flush_status;
+ }
+ 
+ void Camera3Device::RequestThread::setPaused(bool paused) {
+diff --git a/services/camera/libcameraservice/ext/CameraServiceExtFactory.cpp b/services/camera/libcameraservice/ext/CameraServiceExtFactory.cpp
+index df12292b7b..cbb99177b2 100644
+--- a/services/camera/libcameraservice/ext/CameraServiceExtFactory.cpp
++++ b/services/camera/libcameraservice/ext/CameraServiceExtFactory.cpp
+@@ -9,7 +9,9 @@ void* CameraServiceExtFactory::sExtObject = nullptr;
+ int (*CameraServiceExtFactory::sOnTransactFunc)(void*, uint32_t, const Parcel&, Parcel*, uint32_t) = nullptr;
+ 
+ void CameraServiceExtFactory::ensureLoaded() {
+-    if (sFunctionTable != nullptr) return;
++    static bool sLoadAttempted = false;
++    if (sLoadAttempted) return;
++    sLoadAttempted = true;
+ 
+     const char* libPath = "system_ext/lib64/libcsextimpl.so";
+     void* handle = dlopen(libPath, RTLD_NOW);
+@@ -74,7 +76,7 @@ int CameraServiceExtFactory::onTransact(uint32_t code, const Parcel& data, Parce
+     ensureLoaded();
+     if (sExtObject == nullptr) {
+         if (sFunctionTable == nullptr) {
+-            ALOGE("CameraServiceExtFactory::onTransact: extension not loaded");
++            ALOGV("CameraServiceExtFactory::onTransact: extension not loaded");
+             return -1;
+         }
+         void* actualFunc = *(void**)sFunctionTable;
+diff --git a/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp b/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp
+index e86e56dff3..69b8531c6c 100644
+--- a/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp
++++ b/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp
+@@ -239,7 +239,8 @@ bool roundBufferDimensionNearest(int32_t width, int32_t height,
+     // requirement. AIDE2 is vendor enhanced feature which requires special resolutions and
+     // those are not populated in static capabilities.
+     if (isPriviledgedClient == true &&
+-            (format == HAL_PIXEL_FORMAT_YCbCr_420_888 || format == HAL_PIXEL_FORMAT_BLOB)) {
++            (format == HAL_PIXEL_FORMAT_YCbCr_420_888 || format == HAL_PIXEL_FORMAT_BLOB ||
++             format == HAL_PIXEL_FORMAT_Y8 || format == HAL_PIXEL_FORMAT_Y16)) {
+         ALOGI("Bypass roundBufferDimensionNearest for privilegedClient YUV streams "
+                 "width %d height %d for format %d", width, height, format);
+ 
+-- 
+2.43.0
+

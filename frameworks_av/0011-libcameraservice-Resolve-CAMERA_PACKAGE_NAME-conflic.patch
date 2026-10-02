@@ -1,0 +1,190 @@
+From 2f45f2e4ff1f9e688f612efe230a5a9655f4793e Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Fri, 2 Oct 2026 08:20:01 +0000
+Subject: [PATCH 11/11] libcameraservice: Resolve CAMERA_PACKAGE_NAME conflict
+ and fix camera port prerequisites
+
+---
+ services/camera/libcameraservice/Android.bp   |  3 +-
+ .../camera/libcameraservice/CameraService.cpp | 14 +++++
+ .../api2/CameraDeviceClient.cpp               |  3 +-
+ .../common/CameraProviderManager.cpp          | 11 +---
+ .../device3/Camera3Device.cpp                 | 56 +++++++++++++------
+ 5 files changed, 59 insertions(+), 28 deletions(-)
+
+diff --git a/services/camera/libcameraservice/Android.bp b/services/camera/libcameraservice/Android.bp
+index 3bae8f7816..aefd294917 100644
+--- a/services/camera/libcameraservice/Android.bp
++++ b/services/camera/libcameraservice/Android.bp
+@@ -133,8 +133,7 @@ cc_library {
+ 
+     defaults: [
+         "libcameraservice_deps",
+-        "camera_package_name_defaults",
+-        "libcameraservice_ext_lib_defaults"
++        "libcameraservice_ext_lib_defaults",
+     ],
+     // Camera service source
+ 
+diff --git a/services/camera/libcameraservice/CameraService.cpp b/services/camera/libcameraservice/CameraService.cpp
+index 2d3e177448..998e37c2bf 100644
+--- a/services/camera/libcameraservice/CameraService.cpp
++++ b/services/camera/libcameraservice/CameraService.cpp
+@@ -184,6 +184,12 @@ static const std::string &sCameraInjectExternalCameraPermission =
+ // Constant integer for FGS Logging, used to denote the API type for logger
+ static const int LOG_FGS_CAMERA_API = 1;
+ const char *sFileName = "lastOpenSessionDumpFile";
++#ifdef CAMERA_NEEDS_CLIENT_INFO_LIB
++static const sp<IOnePlusCameraProvider> gVendorCameraProviderService = IOnePlusCameraProvider::getService();
++#endif
++#ifdef CAMERA_NEEDS_CLIENT_INFO_LIB_OPLUS
++static const sp<IOPlusCameraMDM> gVendorCameraProviderService = IOPlusCameraMDM::getService();
++#endif
+ static constexpr int32_t kSystemNativeClientScore = resource_policy::PERCEPTIBLE_APP_ADJ;
+ static constexpr int32_t kSystemNativeClientState =
+         ActivityManager::PROCESS_STATE_PERSISTENT_UI;
+@@ -4003,6 +4009,8 @@ bool CameraService::evictClientIdByRemote(const wp<IBinder>& remote) {
+             }
+         }
+ 
++        //clear the evicted client list before acquring service lock again.
++        evicted.clear();
+         // Reacquire mServiceLock
+         mServiceLock.lock();
+ 
+@@ -4611,6 +4619,12 @@ status_t CameraService::BasicClient::notifyCameraOpening() {
+     sCameraService->updateOpenCloseStatus(mCameraIdStr, true /*open*/, getPackageName(),
+             mSharedMode);
+ 
++#if defined (CAMERA_NEEDS_CLIENT_INFO_LIB) || defined (CAMERA_NEEDS_CLIENT_INFO_LIB_OPLUS)
++    if (gVendorCameraProviderService != nullptr) {
++        gVendorCameraProviderService->setPackageName(getPackageName().c_str());
++    }
++#endif
++
+     return OK;
+ }
+ 
+diff --git a/services/camera/libcameraservice/api2/CameraDeviceClient.cpp b/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
+index 26cdb91cdf..f11908441e 100644
+--- a/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
++++ b/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
+@@ -2284,7 +2284,8 @@ binder::Status CameraDeviceClient::finalizeOutputConfigurations(int32_t streamId
+                 outSurface, flagtools::convertParcelableSurfaceTypeToSurface(surface),
+                 mCameraIdStr, mDevice->info(), mDevice->infoPhysical(physicalId),
+                 sensorPixelModesUsed, dynamicRangeProfile, streamUseCase, timestampBase,
+-                mirrorMode, colorSpace, /*respectSurfaceSize*/ false, multiResMode);
++                mirrorMode, colorSpace, /*respectSurfaceSize*/ false, multiResMode,
++                mPrivilegedClient);
+ 
+         if (!res.isOk()) return res;
+ 
+diff --git a/services/camera/libcameraservice/common/CameraProviderManager.cpp b/services/camera/libcameraservice/common/CameraProviderManager.cpp
+index b6d5628edb..959cf4901e 100644
+--- a/services/camera/libcameraservice/common/CameraProviderManager.cpp
++++ b/services/camera/libcameraservice/common/CameraProviderManager.cpp
+@@ -1179,14 +1179,6 @@ SystemCameraKind CameraProviderManager::ProviderInfo::DeviceInfo3::getSystemCame
+         return SystemCameraKind::HIDDEN_SECURE_CAMERA;
+     }
+ 
+-    // Go through the capabilities and check if it has
+-    // ANDROID_REQUEST_AVAILABLE_CAPABILITIES_SYSTEM_CAMERA
+-    for (size_t i = 0; i < entryCap.count; ++i) {
+-        uint8_t capability = entryCap.data.u8[i];
+-        if (capability == ANDROID_REQUEST_AVAILABLE_CAPABILITIES_SYSTEM_CAMERA) {
+-            return SystemCameraKind::SYSTEM_ONLY_CAMERA;
+-        }
+-    }
+     return SystemCameraKind::PUBLIC;
+ }
+ 
+@@ -3089,6 +3081,9 @@ void CameraProviderManager::ProviderInfo::torchModeStatusChangeInternal(
+         std::lock_guard<std::mutex> lock(mLock);
+         for (auto& deviceInfo : mDevices) {
+             if (deviceInfo->mName == cameraDeviceName) {
++                if (!deviceInfo->hasFlashUnit()) {
++                    return;
++                }
+                 ALOGI("Camera device %s torch status is now %s", cameraDeviceName.c_str(),
+                         FrameworkTorchStatusToString(newStatus));
+                 id = deviceInfo->mId;
+diff --git a/services/camera/libcameraservice/device3/Camera3Device.cpp b/services/camera/libcameraservice/device3/Camera3Device.cpp
+index 5419e6ef90..d63579dc8e 100644
+--- a/services/camera/libcameraservice/device3/Camera3Device.cpp
++++ b/services/camera/libcameraservice/device3/Camera3Device.cpp
+@@ -488,11 +488,31 @@ ssize_t Camera3Device::getJpegBufferSize(const CameraMetadata &info, uint32_t wi
+     }
+     assert(kMinJpegBufferSize < maxJpegBufferSize);
+ 
++    ssize_t jpegDebugSize = 0;
++
++    sp<VendorTagDescriptorCache> vtCache = VendorTagDescriptorCache::getGlobalVendorTagCache();
++    sp<VendorTagDescriptor> vTags = nullptr;
++    if (vtCache.get() != nullptr) {
++        vtCache->getVendorTagDescriptor(info.getVendorId(), &vTags);
++    }
++
++    uint32_t tag;
++    status_t res = CameraMetadata::getTagFromName("org.quic.camera.jpegdebugdata.size",
++        vTags.get(), &tag);
++    if (res == OK) {
++        camera_metadata_ro_entry entry = info.find(tag);
++        if (entry.count > 0) {
++            jpegDebugSize = entry.data.i32[0];
++            ALOGE("%s: Camera %s: Jpeg debug data size %zd", __FUNCTION__, mId.c_str(), jpegDebugSize);
++        }
++    }
++
+     // Calculate final jpeg buffer size for the given resolution.
++    ssize_t minJpegBufferSize = kMinJpegBufferSize + jpegDebugSize;
+     float scaleFactor = ((float) (width * height)) /
+             (chosenMaxJpegResolution.width * chosenMaxJpegResolution.height);
+-    ssize_t jpegBufferSize = scaleFactor * (maxJpegBufferSize - kMinJpegBufferSize) +
+-            kMinJpegBufferSize;
++    ssize_t jpegBufferSize = scaleFactor * (maxJpegBufferSize - minJpegBufferSize) +
++            minJpegBufferSize;
+     if (!mPrivilegedClient && jpegBufferSize > maxJpegBufferSize) {
+         ALOGI("%s: jpeg buffer size calculated is > maxJpeg bufferSize(%zd), clamping",
+                   __FUNCTION__, maxJpegBufferSize);
+@@ -2570,21 +2590,23 @@ status_t Camera3Device::configureStreamsLocked(int operatingMode,
+     }
+ 
+ #ifdef CAMERA_PACKAGE_NAME
+-    sp<VendorTagDescriptor> vTags;
+-    sp<VendorTagDescriptorCache> vCache = VendorTagDescriptorCache::getGlobalVendorTagCache();
+-    if (vCache.get()) {
+-        const camera_metadata_t *metaBuffer = sessionParams.getAndLock();
+-        metadata_vendor_id_t vendorId = get_camera_metadata_vendor_id(metaBuffer);
+-        sessionParams.unlock(metaBuffer);
+-        vCache->getVendorTagDescriptor(vendorId, &vTags);
+-        uint32_t tag;
+-        if (CameraMetadata::getTagFromName(CAMERA_PACKAGE_NAME, vTags.get(), &tag)) {
+-            ALOGE("%s: Unable to get %s tag", __FUNCTION__, CAMERA_PACKAGE_NAME);
+-        } else {
+-            std::string pkgName = CameraService::getCurrPackageName();
+-            status_t res = const_cast<CameraMetadata&>(sessionParams).update(tag, String8(pkgName.c_str()));
+-            if (res) {
+-                ALOGE("%s: metadata update failed, res = %d", __FUNCTION__, res);
++    if (strlen(CAMERA_PACKAGE_NAME) > 0) {
++        sp<VendorTagDescriptor> vTags;
++        sp<VendorTagDescriptorCache> vCache = VendorTagDescriptorCache::getGlobalVendorTagCache();
++        if (vCache.get()) {
++            const camera_metadata_t *metaBuffer = sessionParams.getAndLock();
++            metadata_vendor_id_t vendorId = get_camera_metadata_vendor_id(metaBuffer);
++            sessionParams.unlock(metaBuffer);
++            vCache->getVendorTagDescriptor(vendorId, &vTags);
++            uint32_t tag;
++            if (CameraMetadata::getTagFromName(CAMERA_PACKAGE_NAME, vTags.get(), &tag)) {
++                ALOGE("%s: Unable to get %s tag", __FUNCTION__, CAMERA_PACKAGE_NAME);
++            } else {
++                std::string pkgName = CameraService::getCurrPackageName();
++                status_t res = const_cast<CameraMetadata&>(sessionParams).update(tag, String8(pkgName.c_str()));
++                if (res) {
++                    ALOGE("%s: metadata update failed, res = %d", __FUNCTION__, res);
++                }
+             }
+         }
+     }
+-- 
+2.43.0
+

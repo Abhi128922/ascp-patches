@@ -1,0 +1,42 @@
+From d84b25450c9dd2920c98edffbc078d961867f55f Mon Sep 17 00:00:00 2001
+From: inferno0230 <mail@inferno0230.in>
+Date: Fri, 2 Oct 2026 10:06:14 +0000
+Subject: [PATCH 1/2] aston: Track and build OplusParts
+
+Enable LTPO support while at it
+---
+ device.mk | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/device.mk b/device.mk
+index 14e5410..1428079 100644
+--- a/device.mk
++++ b/device.mk
+@@ -29,6 +29,7 @@ PRODUCT_COPY_FILES += \
+ PRODUCT_SYSTEM_PROPERTIES += \
+     sys.brightness.disable_gamma_conversion=true
+ 
++$(call soong_config_set_bool,surfaceflinger,supports_oplus_adfr,true)
+ $(call soong_config_set_bool,qtidisplay,pxlw_hw_iris7,true)
+ 
+ # IR
+@@ -92,6 +93,9 @@ $(call soong_config_set_bool,OPLUS_LINEAGE_VIBRATOR_HAL,USE_EFFECT_STREAM,true)
+ # Inherit from the common OEM chipset makefile.
+ $(call inherit-product, device/oneplus/sm8550-common/common.mk)
+ 
++# OplusParts
++$(call inherit-product, packages/apps/OplusParts/oplusparts.mk)
++
+ # Inherit from the proprietary files makefile.
+ $(call inherit-product, vendor/oneplus/aston/aston-vendor.mk)
+ 
+@@ -105,3 +109,5 @@ PRODUCT_PACKAGES += \
+ 
+ # OPLUS Fusion Light Sensor
+ $(call inherit-product-if-exists, vendor/oneplus/fusion/fusion-vendor.mk)
++
++PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false
+\ No newline at end of file
+-- 
+2.43.0
+

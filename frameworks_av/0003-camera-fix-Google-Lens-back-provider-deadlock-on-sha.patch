@@ -1,8 +1,8 @@
-From 184a15843cdb724d1b5e5ba0376a4b46ec7fbe08 Mon Sep 17 00:00:00 2001
+From 18fd7132385a2894e00f75e4d8a3f748e185808e Mon Sep 17 00:00:00 2001
 From: elpaablo <donopwhile1@gmail.com>
 Date: Fri, 19 Jun 2026 18:03:26 +0100
-Subject: [PATCH 2/6] camera: fix Google-Lens->back provider deadlock on shared
- rear sensor
+Subject: [PATCH 03/11] camera: fix Google-Lens->back provider deadlock on
+ shared rear sensor
 
 Camera IDs 0 and 2 share the rear main sensor. The HAL declares an
 asymmetric conflict (0 conflicts with 2, but not 2 with 0), so when the
@@ -35,18 +35,56 @@ now force-evicts camera 0 and the camera UI is ready with no provider
 SIGABRT / RealTimeMCX flush timeout. Keeps the dual-camera (MCX) path
 working rather than disabling it.
 ---
- .../camera/libcameraservice/CameraService.cpp | 51 +++++++++++++++++++
- .../api2/CameraDeviceClient.cpp               | 41 ++++++++++++---
- 2 files changed, 86 insertions(+), 6 deletions(-)
+ .../camera/libcameraservice/CameraService.cpp | 67 +++++++++++++++++++
+ .../api2/CameraDeviceClient.cpp               | 41 ++++++++++--
+ 2 files changed, 102 insertions(+), 6 deletions(-)
 
 diff --git a/services/camera/libcameraservice/CameraService.cpp b/services/camera/libcameraservice/CameraService.cpp
-index 562081cded..b64e5e627b 100644
+index 17089fa07e..2d3e177448 100644
 --- a/services/camera/libcameraservice/CameraService.cpp
 +++ b/services/camera/libcameraservice/CameraService.cpp
-@@ -2132,6 +2132,57 @@ status_t CameraService::handleEvictionsLocked(const std::string& cameraId, int c
-             evicted.clear();
-         }
+@@ -38,6 +38,7 @@
+ #include <aidl/AidlCameraService.h>
+ #include <android-base/macros.h>
+ #include <android-base/parseint.h>
++#include <android-base/properties.h>
+ #include <android-base/strings.h>
+ #include <android/companion/virtualnative/IVirtualDeviceManagerNative.h>
+ #include <binder/ActivityManager.h>
+@@ -1985,6 +1986,14 @@ status_t CameraService::checkIfDeviceIsUsable(const std::string& cameraId) const
+     return NO_ERROR;
+ }
  
++bool isPrivilegedClient(const std::string &packageName) {
++    std::vector<std::string> privilegedClientList = android::base::Split(
++            android::base::GetProperty("persist.vendor.camera.privapp.list", ""), ",");
++    auto it = std::find(privilegedClientList.begin(), privilegedClientList.end(),
++            packageName);
++    return it != privilegedClientList.end();
++}
++
+ void CameraService::finishConnectLocked(const sp<BasicClient>& client,
+         const CameraService::DescriptorPtr& desc, int oomScoreOffset, bool systemNativeClient) {
+ 
+@@ -1994,6 +2003,10 @@ void CameraService::finishConnectLocked(const sp<BasicClient>& client,
+                     oomScoreOffset, systemNativeClient);
+     auto evicted = mActiveClientManager.addAndEvict(clientDescriptor);
+ 
++    if (isPrivilegedClient(client->getPackageName())) {
++        evicted.clear();
++    }
++
+     logConnected(desc->getKey(), static_cast<int>(desc->getOwnerId()),
+             client->getPackageName());
+ 
+@@ -2139,6 +2152,60 @@ status_t CameraService::handleEvictionsLocked(const std::string& cameraId, int c
+         // Find clients that would be evicted
+         auto evicted = mActiveClientManager.wouldEvict(clientDescriptor);
+ 
++        if (isPrivilegedClient(packageName)) {
++            evicted.clear();
++        }
++
 +        // --- OPLUS PORT: Force symmetric eviction for cameras sharing physical sensors ---
 +        // Camera IDs 0 and 2 share the rear main sensor. The HAL declares
 +        // 0 conflicts with 2, but NOT 2 conflicts with 0 (asymmetric).
@@ -97,15 +135,14 @@ index 562081cded..b64e5e627b 100644
 +            }
 +        }
 +        // -----------------------------------------------------------------------
-+
          // If the incoming client was 'evicted,' higher priority clients have the camera in the
          // background, so we cannot do evictions
          if (std::find(evicted.begin(), evicted.end(), clientDescriptor) != evicted.end()) {
 diff --git a/services/camera/libcameraservice/api2/CameraDeviceClient.cpp b/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
-index 5e7364f0f4..b11fc97a05 100644
+index d0ebd02307..3a8a66bc12 100644
 --- a/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
 +++ b/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
-@@ -2533,13 +2533,42 @@ void CameraDeviceClient::detachDevice() {
+@@ -2820,13 +2820,42 @@ void CameraDeviceClient::detachDevice() {
          {
              int64_t lastFrameNumber;
              status_t code;
@@ -155,5 +192,5 @@ index 5e7364f0f4..b11fc97a05 100644
          }
  
 -- 
-2.34.1
+2.43.0
 

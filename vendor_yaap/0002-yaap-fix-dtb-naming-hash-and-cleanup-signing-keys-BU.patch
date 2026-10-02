@@ -1,0 +1,44 @@
+From c586c3206129c934f65341fbd18eac166bae3a65 Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Fri, 2 Oct 2026 10:16:01 +0000
+Subject: [PATCH 2/2] yaap: fix dtb naming hash and cleanup signing keys BUILD
+
+---
+ build/tools/merge_dtbs.py |  2 +-
+ signing/keys/BUILD        | 11 -----------
+ 2 files changed, 1 insertion(+), 12 deletions(-)
+ delete mode 100644 signing/keys/BUILD
+
+diff --git a/build/tools/merge_dtbs.py b/build/tools/merge_dtbs.py
+index fc2b26f..510573b 100755
+--- a/build/tools/merge_dtbs.py
++++ b/build/tools/merge_dtbs.py
+@@ -403,7 +403,7 @@ class InnerMergedDeviceTree(DeviceTreeInfo):
+ 	def get_name(self):
+ 		ext = os.path.splitext(os.path.basename(self.base))[1]
+ 		base_parts = self.filename_to_parts(self.base)
+-		name_hash = hex(hash((self.plat_id, self.board_id, self.pmic_id)))
++		name_hash = hex(hash(self))
+ 		name = '-'.join(chain.from_iterable([base_parts] + [self.filename_to_parts(tp.filename, ignored_parts=base_parts) for tp in self.techpacks]))
+ 		final_name = '-'.join([name, name_hash]) + ext
+ 		return final_name
+diff --git a/signing/keys/BUILD b/signing/keys/BUILD
+deleted file mode 100644
+index 64f88e5..0000000
+--- a/signing/keys/BUILD
++++ /dev/null
+@@ -1,11 +0,0 @@
+-package(default_visibility = ["//visibility:public"])
+-
+-filegroup(
+-    name = "android_certificate_directory",
+-    srcs = glob([
+-        "*.pk8",
+-        "*.pem",
+-        "*.key",
+-    ]),
+-    visibility = ["//visibility:public"],
+-)
+-- 
+2.43.0
+

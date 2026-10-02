@@ -1,7 +1,7 @@
-From ccbbe7831f40942609c6fa1f9df6e51f1a9a8e1b Mon Sep 17 00:00:00 2001
+From d089362a8a49695864fca16bfbda315ab97aa776 Mon Sep 17 00:00:00 2001
 From: elpaablo <donopwhile1@gmail.com>
 Date: Mon, 13 Jul 2026 01:09:56 +0100
-Subject: [PATCH 2/2] sensorservice: Load the OPLUS fusion light engine
+Subject: [PATCH 3/3] sensorservice: Load the OPLUS fusion light engine
  (content-immune ALS)
 
 Port stock ColorOS's SensorServiceExt seam so the prebuilt
@@ -35,7 +35,7 @@ vendor/oneplus/fusion). Devices without the prop are unaffected.
  create mode 100644 services/sensorservice/OplusFusionExt.h
 
 diff --git a/services/sensorservice/Android.bp b/services/sensorservice/Android.bp
-index f0eab38a59..ca1dc0cb87 100644
+index f0eab38..ca1dc0c 100644
 --- a/services/sensorservice/Android.bp
 +++ b/services/sensorservice/Android.bp
 @@ -32,6 +32,7 @@ cc_library {
@@ -56,7 +56,7 @@ index f0eab38a59..ca1dc0cb87 100644
          "libhardware_legacy",
 diff --git a/services/sensorservice/OplusFusionExt.cpp b/services/sensorservice/OplusFusionExt.cpp
 new file mode 100644
-index 0000000000..4a8fae0d14
+index 0000000..4a8fae0
 --- /dev/null
 +++ b/services/sensorservice/OplusFusionExt.cpp
 @@ -0,0 +1,150 @@
@@ -212,7 +212,7 @@ index 0000000000..4a8fae0d14
 +} // namespace android
 diff --git a/services/sensorservice/OplusFusionExt.h b/services/sensorservice/OplusFusionExt.h
 new file mode 100644
-index 0000000000..bb93ef4358
+index 0000000..bb93ef4
 --- /dev/null
 +++ b/services/sensorservice/OplusFusionExt.h
 @@ -0,0 +1,52 @@
@@ -269,10 +269,10 @@ index 0000000000..bb93ef4358
 +
 +} // namespace android
 diff --git a/services/sensorservice/SensorDevice.cpp b/services/sensorservice/SensorDevice.cpp
-index 9c4d1ace15..6d2efff852 100644
+index ed0f8ad..5f04bee 100644
 --- a/services/sensorservice/SensorDevice.cpp
 +++ b/services/sensorservice/SensorDevice.cpp
-@@ -36,6 +36,7 @@
+@@ -37,6 +37,7 @@
  
  #include "AidlSensorHalWrapper.h"
  #include "HidlSensorHalWrapper.h"
@@ -280,7 +280,7 @@ index 9c4d1ace15..6d2efff852 100644
  #include "android/hardware/sensors/2.0/types.h"
  #include "android/hardware/sensors/2.1/types.h"
  #include "convertV2_1.h"
-@@ -467,6 +468,17 @@ void SensorDevice::autoDisable(void* ident, int handle) {
+@@ -468,6 +469,17 @@ void SensorDevice::autoDisable(void* ident, int handle) {
  status_t SensorDevice::activate(void* ident, int handle, int enabled) {
      if (mHalWrapper == nullptr) return NO_INIT;
  
@@ -299,7 +299,7 @@ index 9c4d1ace15..6d2efff852 100644
      return activateLocked(ident, handle, enabled);
  }
 diff --git a/services/sensorservice/SensorDevice.h b/services/sensorservice/SensorDevice.h
-index b7b04b5d00..58ce11a636 100644
+index f74b476..49607b7 100644
 --- a/services/sensorservice/SensorDevice.h
 +++ b/services/sensorservice/SensorDevice.h
 @@ -77,7 +77,9 @@ public:
@@ -312,7 +312,7 @@ index b7b04b5d00..58ce11a636 100644
      status_t batch(void* ident, int handle, int flags, int64_t samplingPeriodNs,
                     int64_t maxBatchReportLatencyNs);
      // Call batch with timeout zero instead of calling setDelay() for newer devices.
-@@ -108,7 +110,7 @@ public:
+@@ -109,7 +111,7 @@ public:
  
      bool isReconnecting() const { return mHalWrapper->mReconnecting; }
  
@@ -322,7 +322,7 @@ index b7b04b5d00..58ce11a636 100644
      // To update the BatchParams of a SensorEventConnection when the mic toggle changes its state
      // while the Sensors Off toggle is on.
 diff --git a/services/sensorservice/SensorInterface.h b/services/sensorservice/SensorInterface.h
-index c446d61f89..20c6c458c3 100644
+index c446d61..20c6c45 100644
 --- a/services/sensorservice/SensorInterface.h
 +++ b/services/sensorservice/SensorInterface.h
 @@ -93,7 +93,7 @@ public:
@@ -335,10 +335,10 @@ index c446d61f89..20c6c458c3 100644
  public:
      VirtualSensor();
 diff --git a/services/sensorservice/SensorService.cpp b/services/sensorservice/SensorService.cpp
-index c28ef15479..1ede6ebef7 100644
+index 912d5cb..d0771ae 100644
 --- a/services/sensorservice/SensorService.cpp
 +++ b/services/sensorservice/SensorService.cpp
-@@ -64,6 +64,7 @@
+@@ -66,6 +66,7 @@
  #include "SensorDirectConnection.h"
  #include "SensorEventAckReceiver.h"
  #include "SensorEventConnection.h"
@@ -346,7 +346,7 @@ index c28ef15479..1ede6ebef7 100644
  #include "SensorFusion.h"
  #include "SensorInterface.h"
  #include "SensorRecord.h"
-@@ -437,6 +438,11 @@ void SensorService::onFirstRef() {
+@@ -439,6 +440,11 @@ void SensorService::onFirstRef() {
                 }
              }
  
@@ -358,7 +358,7 @@ index c28ef15479..1ede6ebef7 100644
              // Check if the device really supports batching by looking at the FIFO event
              // counts for each sensor.
              bool batchingSupported = false;
-@@ -548,6 +554,28 @@ bool SensorService::registerSensor(std::shared_ptr<SensorInterface> s, bool isDe
+@@ -553,6 +559,28 @@ bool SensorService::registerSensor(std::shared_ptr<SensorInterface> s, bool isDe
      }
  }
  
@@ -388,10 +388,10 @@ index c28ef15479..1ede6ebef7 100644
      return registerSensor(std::move(s), isDebug);
  }
 diff --git a/services/sensorservice/SensorService.h b/services/sensorservice/SensorService.h
-index de6034a4fe..95dba8efdd 100644
+index 1438853..21a07d8 100644
 --- a/services/sensorservice/SensorService.h
 +++ b/services/sensorservice/SensorService.h
-@@ -428,13 +428,22 @@ private:
+@@ -509,13 +509,22 @@ private:
      String8 getSensorName(int handle) const;
      String8 getSensorStringType(int handle) const;
      bool isVirtualSensor(int handle) const;

@@ -1,7 +1,7 @@
-From 6b7047a2521c0e9937bc67bba413ea95194e2402 Mon Sep 17 00:00:00 2001
+From e649bd33996a1f0af068667d2509f1f6a65c9ef7 Mon Sep 17 00:00:00 2001
 From: elpaablo <donopwhile1@gmail.com>
 Date: Sat, 18 Jul 2026 07:12:02 +0100
-Subject: [PATCH 1/2] surfaceflinger: Flag fullscreen video layers in HDR layer
+Subject: [PATCH 2/3] surfaceflinger: Flag fullscreen video layers in HDR layer
  info
 
 Set HDR_INFO_FLAG_FULLSCREEN_VIDEO (bit 30) in HdrLayerInfo::flags when a
@@ -18,7 +18,7 @@ update paths report it.
  3 files changed, 74 insertions(+), 1 deletion(-)
 
 diff --git a/services/surfaceflinger/HdrLayerInfoReporter.h b/services/surfaceflinger/HdrLayerInfoReporter.h
-index 758b111e41..c2b51c97c7 100644
+index 758b111..c2b51c9 100644
 --- a/services/surfaceflinger/HdrLayerInfoReporter.h
 +++ b/services/surfaceflinger/HdrLayerInfoReporter.h
 @@ -30,6 +30,13 @@ namespace android {
@@ -36,10 +36,10 @@ index 758b111e41..c2b51c97c7 100644
          int32_t numberOfHdrLayers = 0;
          int32_t maxW = 0;
 diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
-index 99cc74b1a6..67a9de95f1 100644
+index ef5750c..7559f05 100644
 --- a/services/surfaceflinger/SurfaceFlinger.cpp
 +++ b/services/surfaceflinger/SurfaceFlinger.cpp
-@@ -180,6 +180,7 @@
+@@ -183,6 +183,7 @@
  #endif
  #endif
  
@@ -47,7 +47,7 @@ index 99cc74b1a6..67a9de95f1 100644
  #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
  #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
  #include <aidl/android/hardware/graphics/composer3/OutputType.h>
-@@ -3628,6 +3629,26 @@ bool SurfaceFlinger::isHdrLayer(const frontend::LayerSnapshot& snapshot) const {
+@@ -3753,6 +3754,26 @@ bool SurfaceFlinger::isHdrLayer(const frontend::LayerSnapshot& snapshot) const {
      return false;
  }
  
@@ -74,7 +74,7 @@ index 99cc74b1a6..67a9de95f1 100644
  ui::Rotation SurfaceFlinger::getPhysicalDisplayOrientation(PhysicalDisplayId displayId,
                                                             bool isPrimary) const {
      if (!mIgnoreHwcPhysicalDisplayOrientation &&
-@@ -3828,12 +3849,23 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
+@@ -3936,12 +3957,23 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
              for (auto& [compositionDisplay, listener] : hdrInfoListeners) {
                  HdrLayerInfoReporter::HdrLayerInfo info;
                  int32_t maxArea = 0;
@@ -98,7 +98,7 @@ index 99cc74b1a6..67a9de95f1 100644
                          if (isHdrLayer(snapshot)) {
                              const auto* outputLayer =
                                      compositionDisplay->getOutputLayerForLayer(layerFe);
-@@ -3876,6 +3908,13 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
+@@ -3983,6 +4015,13 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
  
                              updateInfoFn(compositionDisplay, *snapshot, layerFe);
                          });
@@ -112,7 +112,7 @@ index 99cc74b1a6..67a9de95f1 100644
                  listener->dispatchHdrLayerInfo(info);
              }
          }
-@@ -10693,6 +10732,7 @@ void SurfaceFlinger::updateHdrInfos(
+@@ -10978,6 +11017,7 @@ void SurfaceFlinger::updateHdrInfos(
      struct AccumulatedHdrInfo {
          HdrLayerInfoReporter::HdrLayerInfo layerInfo{};
          int32_t maxArea{0};
@@ -120,7 +120,7 @@ index 99cc74b1a6..67a9de95f1 100644
          bool hdrAllowed{true};
      };
      ui::DisplayMap<DisplayId, AccumulatedHdrInfo> hdrInfosForDisplay;
-@@ -10801,12 +10841,37 @@ void SurfaceFlinger::updateHdrInfos(
+@@ -11085,12 +11125,37 @@ void SurfaceFlinger::updateHdrInfos(
                          }
                      }
                  }
@@ -160,10 +160,10 @@ index 99cc74b1a6..67a9de95f1 100644
      }
  }
 diff --git a/services/surfaceflinger/SurfaceFlinger.h b/services/surfaceflinger/SurfaceFlinger.h
-index 008834504a..7682934932 100644
+index 36e1ce6..3368c7f 100644
 --- a/services/surfaceflinger/SurfaceFlinger.h
 +++ b/services/surfaceflinger/SurfaceFlinger.h
-@@ -1360,6 +1360,7 @@ private:
+@@ -1385,6 +1385,7 @@ private:
      int getMaxAcquiredBufferCountForRefreshRate(Fps refreshRate) const;
  
      bool isHdrLayer(const frontend::LayerSnapshot& snapshot) const;

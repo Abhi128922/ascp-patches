@@ -1,8 +1,7 @@
-From 22750fda13c24074054a694a336311ba2fcd5db3 Mon Sep 17 00:00:00 2001
+From 369910f99326c6a9fa8ca954dd850d082683d5e6 Mon Sep 17 00:00:00 2001
 From: elpaablo <donopwhile1@gmail.com>
-Date: Thu, 16 Jul 2026 08:01:18 +0100
-Subject: [PATCH 2/3] display: Fullscreen HDR brightness pin (ignore
- freeform/PiP, no SS crash)
+Date: Fri, 2 Oct 2026 09:37:20 +0000
+Subject: [PATCH 3/4] display: Fullscreen HDR brightness pin & SDR video floor
 
 While Enhanced HDR brightness is on and SurfaceFlinger reports a large
 HDR layer (>= 50% of the screen) on the default display, pin the
@@ -10,43 +9,50 @@ auto-brightness base to a lux-derived band (50/80/100% of the normal max)
 with hysteresis and smooth ramps. Registered before HdrBrightnessModifier
 so the HDR ratio multiplies the pin.
 
+Also adds an auto-brightness floor when SurfaceFlinger reports a
+fullscreen video layer (HDR_INFO_FLAG_FULLSCREEN_VIDEO) and the HDR pin
+is not active, lifting the auto-brightness base to at least 0.4 (~175 nits).
+
 Gated by persist.alpha.video_brightness_pin (default true) and
 Settings.Secure.HDR_BRIGHTNESS_ENABLED.
-
-Also:
-- Do not pin freeform or PiP (WINDOWING_MODE_FREEFORM / PINNED) focused tasks
-- Only register HdrLayerInfoListener on Display.DEFAULT_DISPLAY (skip freeform
-  virtual displays); SF NAME_NOT_FOUND on unknown tokens used to kill
-  system_server on the PowerManagerService thread when opening freeform
-- Catch RuntimeException around HDR listener register/unregister and leave a
-  clean unregistered/pin-off state on failure
 ---
- .../display/brightness/BrightnessReason.java  |   8 +-
+ .../display/brightness/BrightnessReason.java  |  11 +-
  .../clamper/BrightnessClamperController.java  |  14 +-
- .../FullscreenVideoBrightnessModifier.java    | 648 ++++++++++++++++++
- 3 files changed, 668 insertions(+), 2 deletions(-)
+ .../FullscreenVideoBrightnessModifier.java    | 732 ++++++++++++++++++
+ 3 files changed, 754 insertions(+), 3 deletions(-)
  create mode 100644 services/core/java/com/android/server/display/brightness/clamper/FullscreenVideoBrightnessModifier.java
 
 diff --git a/services/core/java/com/android/server/display/brightness/BrightnessReason.java b/services/core/java/com/android/server/display/brightness/BrightnessReason.java
-index d4b9a6ce058b..8d49c7834562 100644
+index a2d6753cb..e2856a236 100644
 --- a/services/core/java/com/android/server/display/brightness/BrightnessReason.java
 +++ b/services/core/java/com/android/server/display/brightness/BrightnessReason.java
-@@ -50,8 +50,11 @@ public final class BrightnessReason {
-     public static final int MODIFIER_THROTTLED = 0x8;
-     public static final int MODIFIER_MIN_LUX = 0x10;
+@@ -56,9 +56,11 @@ public final class BrightnessReason {
      public static final int MODIFIER_STYLUS_UNDER_USE = 0x20;
+     public static final int MODIFIER_SUNLIGHT = 0x40;
+     public static final int MODIFIER_MAX_LUX = 0x80;
 +    /** Fullscreen HDR pin (ambient-band base override while HDR content is active). */
-+    public static final int MODIFIER_VIDEO_PIN = 0x40;
++    public static final int MODIFIER_VIDEO_PIN = 0x100;
      public static final int MODIFIER_MASK = MODIFIER_DIMMED | MODIFIER_LOW_POWER | MODIFIER_HDR
--            | MODIFIER_THROTTLED | MODIFIER_MIN_LUX | MODIFIER_STYLUS_UNDER_USE;
-+            | MODIFIER_THROTTLED | MODIFIER_MIN_LUX | MODIFIER_STYLUS_UNDER_USE
-+            | MODIFIER_VIDEO_PIN;
+             | MODIFIER_THROTTLED | MODIFIER_MIN_LUX | MODIFIER_STYLUS_UNDER_USE | MODIFIER_SUNLIGHT
+-            | MODIFIER_MAX_LUX;
++            | MODIFIER_MAX_LUX | MODIFIER_VIDEO_PIN;
  
-     // ADJUSTMENT_*
-     // These things can happen at any point, even if the main brightness reason doesn't
-@@ -158,6 +161,9 @@ public final class BrightnessReason {
-         if ((mModifier & MODIFIER_STYLUS_UNDER_USE) != 0) {
-             sb.append(" stylus_under_use");
+     @IntDef(flag = true, prefix = {"MODIFIER_"}, value = {
+             MODIFIER_NONE,
+@@ -68,7 +70,9 @@ public final class BrightnessReason {
+             MODIFIER_THROTTLED,
+             MODIFIER_MIN_LUX,
+             MODIFIER_STYLUS_UNDER_USE,
+-            MODIFIER_SUNLIGHT
++            MODIFIER_SUNLIGHT,
++            MODIFIER_MAX_LUX,
++            MODIFIER_VIDEO_PIN
+     })
+     @Retention(RetentionPolicy.SOURCE)
+     public @interface Modifier {}
+@@ -185,6 +189,9 @@ public final class BrightnessReason {
+         if ((mModifier & MODIFIER_MAX_LUX) != 0) {
+             sb.append(" lux_upper_bound");
          }
 +        if ((mModifier & MODIFIER_VIDEO_PIN) != 0) {
 +            sb.append(" video_pin");
@@ -55,10 +61,10 @@ index d4b9a6ce058b..8d49c7834562 100644
          if (sb.charAt(strlen - 1) == '[') {
              sb.setLength(strlen - 2);
 diff --git a/services/core/java/com/android/server/display/brightness/clamper/BrightnessClamperController.java b/services/core/java/com/android/server/display/brightness/clamper/BrightnessClamperController.java
-index 22e43c482e22..0a5a692ed62e 100644
+index 48400a0a4..640ce04dd 100644
 --- a/services/core/java/com/android/server/display/brightness/clamper/BrightnessClamperController.java
 +++ b/services/core/java/com/android/server/display/brightness/clamper/BrightnessClamperController.java
-@@ -252,7 +252,12 @@ public class BrightnessClamperController {
+@@ -256,7 +256,12 @@ public class BrightnessClamperController {
                  || !BrightnessSynchronizer.floatEquals(state1.mMaxBrightness,
                  state2.mMaxBrightness)
                  || !BrightnessSynchronizer.floatEquals(state1.mMinBrightness,
@@ -72,7 +78,7 @@ index 22e43c482e22..0a5a692ed62e 100644
      }
  
      private void start() {
-@@ -331,6 +336,9 @@ public class BrightnessClamperController {
+@@ -363,6 +368,9 @@ public class BrightnessClamperController {
                  modifiers.add(new BrightnessLowLuxModifier(handler, listener, context,
                          data.mDisplayDeviceConfig));
              }
@@ -81,8 +87,8 @@ index 22e43c482e22..0a5a692ed62e 100644
 +            modifiers.add(new FullscreenVideoBrightnessModifier(handler, context, listener, data));
              modifiers.add(new HdrBrightnessModifier(
                      handler, context, flags, pluginManager, listener, data));
-             if (flags.isMinmodeCapBrightnessEnabled()) {
-@@ -500,5 +508,9 @@ public class BrightnessClamperController {
+             modifiers.add(new BrightnessPluginModifier(
+@@ -545,5 +553,9 @@ public class BrightnessClamperController {
          int mMaxBrightnessReason = BrightnessInfo.BRIGHTNESS_MAX_REASON_NONE;
          float mMaxBrightness = PowerManager.BRIGHTNESS_MAX;
          float mMinBrightness = PowerManager.BRIGHTNESS_MIN;
@@ -94,10 +100,10 @@ index 22e43c482e22..0a5a692ed62e 100644
  }
 diff --git a/services/core/java/com/android/server/display/brightness/clamper/FullscreenVideoBrightnessModifier.java b/services/core/java/com/android/server/display/brightness/clamper/FullscreenVideoBrightnessModifier.java
 new file mode 100644
-index 000000000000..e363c2cdb840
+index 000000000..9df5c0fee
 --- /dev/null
 +++ b/services/core/java/com/android/server/display/brightness/clamper/FullscreenVideoBrightnessModifier.java
-@@ -0,0 +1,648 @@
+@@ -0,0 +1,732 @@
 +/*
 + * Copyright (C) 2026 The Android Open Source Project
 + *
@@ -122,9 +128,9 @@ index 000000000000..e363c2cdb840
 +
 +import android.app.ActivityTaskManager;
 +import android.app.ActivityTaskManager.RootTaskInfo;
-+import android.database.ContentObserver;
 +import android.content.ContentResolver;
 +import android.content.Context;
++import android.database.ContentObserver;
 +import android.hardware.display.DisplayManagerInternal;
 +import android.net.Uri;
 +import android.os.Handler;
@@ -173,6 +179,14 @@ index 000000000000..e363c2cdb840
 + *
 + * <p>Registered before {@link HdrBrightnessModifier} so the HDR ratio multiplies this pin.
 + *
++ * <p><b>SDR video floor</b>: when SurfaceFlinger flags a fullscreen video-buffer layer
++ * ({@link #HDR_INFO_FLAG_FULLSCREEN_VIDEO} on the same listener callback) and the HDR
++ * pin is not active, the auto-brightness base is lifted to at least
++ * {@link #SDR_VIDEO_FLOOR} (max(), never lowered) so dark-room SDR playback is not
++ * reproduced too dim. Same gates as the pin (Enhanced HDR brightness setting,
++ * auto-brightness, default display, not freeform/PiP). Camera previews count as video
++ * by design.
++ *
 + * <p>Implements {@link BrightnessClamperController.StatefulModifier} so pin enter/exit
 + * and band retargets notify DisplayPowerController (otherwise {@code apply()} never
 + * re-runs and {@code mNeedRamp} stays stuck).
@@ -200,6 +214,20 @@ index 000000000000..e363c2cdb840
 +    @VisibleForTesting static final float PIN_DARK = 0.50f * USER_MAX_BRIGHTNESS;   // 0.40
 +    @VisibleForTesting static final float PIN_MID = 0.80f * USER_MAX_BRIGHTNESS;    // 0.64
 +    @VisibleForTesting static final float PIN_BRIGHT = 1.00f * USER_MAX_BRIGHTNESS; // 0.80
++
++    /**
++     * Auto-brightness floor while fullscreen SDR video plays (float 0.40 ≈ 175 nits).
++     * Unlike the HDR pin this is a max(): bright rooms keep the (now content-immune)
++     * auto value, dark rooms are lifted so video is not reproduced too dim.
++     */
++    @VisibleForTesting static final float SDR_VIDEO_FLOOR = 0.50f * USER_MAX_BRIGHTNESS; // 0.40
++
++    /**
++     * Mirror of {@code HdrLayerInfoReporter::HDR_INFO_FLAG_FULLSCREEN_VIDEO}
++     * (frameworks/native): SurfaceFlinger sets it when a visible video-buffer layer
++     * (video decoder or camera output) covers at least half of the display.
++     */
++    @VisibleForTesting static final int HDR_INFO_FLAG_FULLSCREEN_VIDEO = 1 << 30;
 +
 +    @VisibleForTesting static final float LUX_DARK_MAX = 40f;
 +    @VisibleForTesting static final float LUX_MID_MIN = 50f;
@@ -231,9 +259,11 @@ index 000000000000..e363c2cdb840
 +                public void onHdrInfoChanged(IBinder displayToken, int numberOfHdrLayers,
 +                        int maxW, int maxH, int flags, float maxDesiredHdrSdrRatio) {
 +                    final float area = numberOfHdrLayers > 0 ? (float) maxW * maxH : 0f;
++                    final boolean videoFullscreen =
++                            (flags & HDR_INFO_FLAG_FULLSCREEN_VIDEO) != 0;
 +                    // Capture token so a post after unregister cannot re-arm the pin.
 +                    final IBinder token = displayToken;
-+                    mHandler.post(() -> onHdrLayerAreaChanged(token, area));
++                    mHandler.post(() -> onHdrLayerAreaChanged(token, area, videoFullscreen));
 +                }
 +            };
 +
@@ -252,6 +282,12 @@ index 000000000000..e363c2cdb840
 +
 +    /** SF reports a large HDR layer (≥ {@link #MIN_LAYER_FRACTION} of this display). */
 +    private boolean mHdrFullscreen;
++    /** SF reports a fullscreen video-buffer layer (SDR or HDR; flags bit). */
++    private boolean mVideoFullscreen;
++    /** SDR video floor engaged (fullscreen video, no HDR pin). */
++    private boolean mFloorActive;
++    /** One-shot ramp for the next floor engage. */
++    private boolean mFloorNeedRamp;
 +    /** Settings.Secure.HDR_BRIGHTNESS_ENABLED (Enhanced HDR brightness). */
 +    private boolean mHdrBrightnessSettingEnabled = true;
 +    /** Cached Settings.System.SCREEN_BRIGHTNESS_MODE == AUTOMATIC. */
@@ -365,6 +401,7 @@ index 000000000000..e363c2cdb840
 +            Slog.w(TAG, "HDR listener unregister failed", e);
 +        }
 +        mHdrFullscreen = false;
++        mVideoFullscreen = false;
 +        updatePinActive();
 +    }
 +
@@ -383,15 +420,18 @@ index 000000000000..e363c2cdb840
 +            }
 +        }
 +        mHdrFullscreen = false;
++        mVideoFullscreen = false;
 +        if (notify) {
 +            updatePinActive();
 +        } else {
-+            // Force pin off without relying on HDR flags alone.
++            // Force pin + floor off without relying on HDR flags alone.
 +            setPinActive(false);
++            setFloorActive(false);
 +        }
 +    }
 +
-+    private void onHdrLayerAreaChanged(IBinder displayToken, float area) {
++    private void onHdrLayerAreaChanged(IBinder displayToken, float area,
++            boolean videoFullscreen) {
 +        // Drop events for a previous display token or after unregister/stop.
 +        if (mStopped || mDisplayToken == null || mDisplayToken != displayToken) {
 +            return;
@@ -402,6 +442,12 @@ index 000000000000..e363c2cdb840
 +            if (DEBUG) {
 +                Slog.d(TAG, "HDR layer area fullscreen=" + areaFullscreen
 +                        + " areaFrac=" + (area / mScreenArea));
++            }
++        }
++        if (videoFullscreen != mVideoFullscreen) {
++            mVideoFullscreen = videoFullscreen;
++            if (DEBUG) {
++                Slog.d(TAG, "video layer fullscreen=" + videoFullscreen);
 +            }
 +        }
 +        // Always re-evaluate pin: freeform/PiP focus can change without a new HDR area.
@@ -443,10 +489,36 @@ index 000000000000..e363c2cdb840
 +
 +    /**
 +     * Pin when Enhanced HDR brightness is on, SF reports a large HDR layer on the
-+     * default display, and the focused task is not freeform / PiP.
++     * default display, and the focused task is not freeform / PiP. The SDR floor
++     * engages under the same gates whenever SF reports a fullscreen video layer
++     * and the HDR pin is not active (the pin owns the base when both apply).
 +     */
 +    private void updatePinActive() {
 +        setPinActive(shouldPin());
++        setFloorActive(shouldFloor());
++    }
++
++    private boolean shouldFloor() {
++        if (!mEnabled || mStopped || !mHdrBrightnessSettingEnabled || !mVideoFullscreen) {
++            return false;
++        }
++        if (mVideoActive) {
++            return false; // HDR pin owns the base.
++        }
++        if (mDisplayId != Display.DEFAULT_DISPLAY) {
++            return false;
++        }
++        return isFocusedTaskFullscreenCompatibleCached();
++    }
++
++    private void setFloorActive(boolean active) {
++        if (active == mFloorActive) {
++            return;
++        }
++        mFloorActive = active;
++        mFloorNeedRamp = active;
++        Slog.i(TAG, "SDR video floor " + (active ? "ON (" + SDR_VIDEO_FLOOR + ")" : "OFF"));
++        mListener.onChanged();
 +    }
 +
 +    private boolean shouldPin() {
@@ -508,8 +580,8 @@ index 000000000000..e363c2cdb840
 +            return;
 +        }
 +        mAmbientLux = lux;
-+        // Drop pin if focus moved to freeform/PiP without a new HDR area event.
-+        if (mHdrFullscreen || mVideoActive) {
++        // Drop pin/floor if focus moved to freeform/PiP without a new HDR area event.
++        if (mHdrFullscreen || mVideoActive || mVideoFullscreen || mFloorActive) {
 +            updatePinActive();
 +        }
 +        if (mVideoActive) {
@@ -596,8 +668,10 @@ index 000000000000..e363c2cdb840
 +    @Override
 +    public void apply(DisplayManagerInternal.DisplayPowerRequest request,
 +            DisplayBrightnessState.Builder stateBuilder) {
-+        // Last-line gate: never pin freeform/PiP even if state is briefly stale.
-+        if (!mEnabled || mStopped || !mVideoActive || mPinnedBrightness < 0f
++        final boolean pinWanted = mVideoActive && mPinnedBrightness >= 0f;
++        final boolean floorWanted = mFloorActive;
++        // Last-line gate: never pin/floor freeform/PiP even if state is briefly stale.
++        if (!mEnabled || mStopped || (!pinWanted && !floorWanted)
 +                || !isFocusedTaskFullscreenCompatibleCached()
 +                || mDisplayId != Display.DEFAULT_DISPLAY) {
 +            return;
@@ -611,14 +685,27 @@ index 000000000000..e363c2cdb840
 +                && request.screenBrightnessOverride >= 0f) {
 +            return;
 +        }
-+        // Force the brightness base to the pin; HdrBrightnessModifier multiplies later.
-+        stateBuilder.setBrightness(mPinnedBrightness);
-+        stateBuilder.getBrightnessReason().addModifier(BrightnessReason.MODIFIER_VIDEO_PIN);
-+        if (mNeedRamp) {
-+            stateBuilder.setCustomAnimationRate(mPendingRampRate);
-+            stateBuilder.setIsSlowChange(true);
-+            mNeedRamp = false;
-+            mPendingRampRate = CUSTOM_ANIMATION_RATE_NOT_SET;
++        if (pinWanted) {
++            // Force the brightness base to the pin; HdrBrightnessModifier multiplies later.
++            stateBuilder.setBrightness(mPinnedBrightness);
++            stateBuilder.getBrightnessReason().addModifier(BrightnessReason.MODIFIER_VIDEO_PIN);
++            if (mNeedRamp) {
++                stateBuilder.setCustomAnimationRate(mPendingRampRate);
++                stateBuilder.setIsSlowChange(true);
++                mNeedRamp = false;
++                mPendingRampRate = CUSTOM_ANIMATION_RATE_NOT_SET;
++            }
++            return;
++        }
++        // SDR video floor: lift the (content-immune) auto base, never lower it.
++        if (stateBuilder.getBrightness() < SDR_VIDEO_FLOOR) {
++            stateBuilder.setBrightness(SDR_VIDEO_FLOOR);
++            stateBuilder.getBrightnessReason().addModifier(BrightnessReason.MODIFIER_VIDEO_PIN);
++            if (mFloorNeedRamp) {
++                stateBuilder.setCustomAnimationRate(RAMP_RATE_UP);
++                stateBuilder.setIsSlowChange(true);
++                mFloorNeedRamp = false;
++            }
 +        }
 +    }
 +
@@ -630,13 +717,14 @@ index 000000000000..e363c2cdb840
 +    @Override
 +    public void applyStateChange(
 +            BrightnessClamperController.ModifiersAggregatedState aggregatedState) {
-+        final boolean pinLive = mEnabled && !mStopped && mVideoActive
-+                && mPinnedBrightness >= 0f
++        final boolean commonLive = mEnabled && !mStopped
 +                && mDisplayId == Display.DEFAULT_DISPLAY
 +                && isFocusedTaskFullscreenCompatibleCached();
-+        if (pinLive) {
++        final boolean pinLive = commonLive && mVideoActive && mPinnedBrightness >= 0f;
++        final boolean floorLive = commonLive && !pinLive && mFloorActive;
++        if (pinLive || floorLive) {
 +            aggregatedState.mVideoPinActive = true;
-+            aggregatedState.mVideoPinBrightness = mPinnedBrightness;
++            aggregatedState.mVideoPinBrightness = pinLive ? mPinnedBrightness : SDR_VIDEO_FLOOR;
 +        } else {
 +            aggregatedState.mVideoPinActive = false;
 +            aggregatedState.mVideoPinBrightness = PowerManager.BRIGHTNESS_INVALID;
@@ -667,6 +755,8 @@ index 000000000000..e363c2cdb840
 +                + " hdrSetting=" + mHdrBrightnessSettingEnabled
 +                + " autoBrt=" + mAutoBrightnessEnabled
 +                + " focusOk=" + isFocusedTaskFullscreenCompatibleCached() + ")");
++        pw.println("  mFloorActive=" + mFloorActive
++                + " (videoFs=" + mVideoFullscreen + " floor=" + SDR_VIDEO_FLOOR + ")");
 +        pw.println("  mAmbientLux=" + mAmbientLux);
 +        pw.println("  mLastBand=" + mLastBand);
 +        pw.println("  mLastAppliedLux=" + mLastAppliedLux);
@@ -676,8 +766,8 @@ index 000000000000..e363c2cdb840
 +                + PIN_DARK + "/" + PIN_MID + "/" + PIN_BRIGHT);
 +        pw.println("  LARGE_LUX_DELTA=" + LARGE_LUX_DELTA);
 +        pw.println("  USER_MAX=" + USER_MAX_BRIGHTNESS);
-+        pw.println("  detect=DEFAULT_DISPLAY + HDR_layer>=50% + not freeform/PiP"
-+                + " + HDR_BRIGHTNESS_ENABLED");
++        pw.println("  detect=DEFAULT_DISPLAY + HDR_layer>=50% (pin) / SF video flag (floor)"
++                + " + not freeform/PiP + HDR_BRIGHTNESS_ENABLED");
 +    }
 +
 +    @VisibleForTesting

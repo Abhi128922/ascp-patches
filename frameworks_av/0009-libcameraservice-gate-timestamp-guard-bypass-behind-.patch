@@ -1,7 +1,7 @@
-From bcfada7586ba314e6baa7fe222b96b3676ebeae1 Mon Sep 17 00:00:00 2001
+From a72b8d8fa50181f32a19a039dce6b732a29d2212 Mon Sep 17 00:00:00 2001
 From: elpaablo <donopwhile1@gmail.com>
 Date: Thu, 9 Jul 2026 22:46:54 +0100
-Subject: [PATCH 2/2] libcameraservice: gate timestamp guard bypass behind
+Subject: [PATCH 09/11] libcameraservice: gate timestamp guard bypass behind
  ro.camera.relax_timestamp_guard
 
 ---
@@ -9,10 +9,10 @@ Subject: [PATCH 2/2] libcameraservice: gate timestamp guard bypass behind
  1 file changed, 14 insertions(+), 7 deletions(-)
 
 diff --git a/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp b/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
-index 87064476c7..fae3efd249 100644
+index 2b8cadc004..b167eddd8d 100644
 --- a/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
 +++ b/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
-@@ -32,6 +32,8 @@
+@@ -33,6 +33,8 @@
  
  #include <inttypes.h>
  
@@ -21,7 +21,7 @@ index 87064476c7..fae3efd249 100644
  #include <utils/Log.h>
  #include <utils/SortedVector.h>
  #include <utils/Trace.h>
-@@ -1031,13 +1033,18 @@ void collectAndRemovePendingOutputBuffers(bool useHalBufManager,
+@@ -1153,13 +1155,18 @@ void collectAndRemovePendingOutputBuffers(bool useHalBufManager,
          sp<NotificationListener> listener, InFlightRequest& request,
          SessionStatsBuilder& sessionStatsBuilder,
          std::vector<BufferToReturn> *returnableBuffers) {

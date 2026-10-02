@@ -1,12 +1,15 @@
 #!/bin/bash
-# Universal Patch Applicator v4 - Final Version with Correct Paths
-# Applies OPlus camera patches to Lunaris Android source tree
-# Usage: From ROM source root: bash /path/to/apply_patches.sh .
+# ==============================================================================
+# YAAP Aston (OnePlus Ace 3 / 12R) Source Patches Applicator
+# Applies OOS Camera, Auto-Brightness, HDR, and LTPO patches to YAAP 17 source
+# Usage: From ROM source root:
+#        bash /path/to/apply_patches.sh .
+# ==============================================================================
 set +e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATCH_DIR="$SCRIPT_DIR"
-LUNARIS_ROOT="${1:-.}"
+ROM_ROOT="${1:-.}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -21,7 +24,7 @@ LOG_FILE="$PATCH_DIR/logs/apply_$TIMESTAMP.log"
 RESULT_FILE="$PATCH_DIR/logs/results_$TIMESTAMP.txt"
 mkdir -p "$PATCH_DIR/logs"
 
-TOTAL=0; APPLIED=0; SKIPPED=0; PARTIAL=0; FAILED=0
+TOTAL=0; APPLIED=0; SKIPPED=0; FAILED=0
 
 log() { echo -e "$1" | tee -a "$LOG_FILE"; }
 result() { echo "$1" >> "$RESULT_FILE"; }
@@ -29,333 +32,180 @@ result() { echo "$1" >> "$RESULT_FILE"; }
 print_header() {
     log ""
     log "${BOLD}${BLUE}╔══════════════════════════════════════════════════════════════════╗${NC}"
-    log "${BOLD}${BLUE}║     OPlus Camera Patches → Lunaris  (v4 Final)                ║${NC}"
+    log "${BOLD}${BLUE}║   YAAP Aston (OnePlus 12R) Source Patches Applicator (A17)       ║${NC}"
     log "${BOLD}${BLUE}╚══════════════════════════════════════════════════════════════════╝${NC}"
     log ""
     log "  Source : $PATCH_DIR"
-    log "  Target : $LUNARIS_ROOT"
+    log "  Target : $ROM_ROOT"
     log "  Date   : $(date)"
     log "  Log    : $LOG_FILE"
     log ""
 }
 
-print_progress() {
-    local current=$1
-    local total=$2
-    local name=$3
-    local pct=$((current * 100 / total))
-    local filled=$((pct / 2))
-    local empty=$((50 - filled))
-    local bar=$(printf "%${filled}s" | tr ' ' '█')$(printf "%${empty}s" | tr ' ' '░')
-    log "${CYAN}  [$bar] $pct%  ($current/$total)  $name${NC}"
-}
-
-# ── Semantic content detection ──────────────────────────────────────
-is_patch_content_present() {
+# ── Check if patch content is already present in repo ────────────────
+is_patch_already_applied() {
     local repo_path="$1"
     local patch_file="$2"
     cd "$repo_path" 2>/dev/null || return 1
-    
-    local specific_ids=$(grep "^+" "$patch_file" | grep -v "^+++" | grep -oE '"[A-Za-z_][A-Za-z0-9_]{20,}"' | sort -u | head -3)
-    
-    local found_specific=0
-    local total_specific=0
-    
-    while IFS= read -r id; do
-        [ -z "$id" ] && continue
-        ((total_specific++))
-        if grep -rqF "$id" . --include="*.java" --include="*.cpp" --include="*.h" --include="*.bp" --include="*.te" --include="*.txt" 2>/dev/null; then
-            ((found_specific++))
-        fi
-    done <<< "$specific_ids"
-    
-    local new_fields=$(grep "^+" "$patch_file" | grep -v "^+++" | grep -oE '\b[a-z][a-zA-Z0-9_]{15,}\b' | sort -u | head -5)
-    
-    local found_fields=0
-    local total_fields=0
-    
-    while IFS= read -r field; do
-        [ -z "$field" ] && continue
-        case "$field" in
-            return|if|else|for|while|class|struct|void|int|static|const|new|nullptr|NULL|throw|try|catch|include|define|using) continue ;;
-        esac
-        ((total_fields++))
-        if grep -rq "$field" . --include="*.java" --include="*.cpp" --include="*.h" --include="*.bp" --include="*.te" --include="*.txt" 2>/dev/null; then
-            ((found_fields++))
-        fi
-    done <<< "$new_fields"
-    
+
+    local subject=$(grep "^Subject:" "$patch_file" | head -1 | sed -E 's/^Subject: \[PATCH[^]]*\] //')
+    if [ -n "$subject" ] && git log -n 50 --oneline 2>/dev/null | grep -Fq "$subject"; then
+        cd - > /dev/null 2>/dev/null
+        return 0
+    fi
+
+    # Dry-run test: if git apply --reverse --check passes, changes already exist
+    if git apply --reverse --check "$patch_file" 2>/dev/null; then
+        cd - > /dev/null 2>/dev/null
+        return 0
+    fi
+
     cd - > /dev/null 2>/dev/null
-    
-    if [ "$total_specific" -gt 0 ] && [ "$found_specific" -eq "$total_specific" ]; then
-        return 0
-    fi
-    
-    if [ "$total_fields" -gt 0 ] && [ "$found_fields" -ge $((total_fields * 80 / 100)) ]; then
-        return 0
-    fi
-    
     return 1
 }
 
-# ── Apply with semantic fallback ────────────────────────────────────
-apply_patch() {
+# ── Apply patch cleanly ──────────────────────────────────────────────
+apply_single_patch() {
     local repo_path="$1"
     local patch_file="$2"
+    local description="$3"
     local patch_name=$(basename "$patch_file")
-    
+
+    if [ ! -d "$repo_path" ]; then
+        log "  ${YELLOW}⏭  [Directory not found: $repo_path] - Skipping${NC}"
+        return 3
+    fi
+
     cd "$repo_path" 2>/dev/null || return 2
-    
-    git am --abort 2>/dev/null || true
-    git checkout -- . 2>/dev/null || true
-    
-    if git am --keep-cr "$patch_file" 2>/dev/null; then
+
+    # Check if already present
+    if is_patch_already_applied "$repo_path" "$patch_file"; then
+        log "  ${CYAN}⏭  [Already Present] $description${NC}"
         cd - > /dev/null 2>/dev/null
         return 0
     fi
+
     git am --abort 2>/dev/null || true
-    
+
+    # Attempt 1: git am
+    if git am --keep-cr "$patch_file" 2>/dev/null; then
+        log "  ${GREEN}✓  [Applied: git am] $description${NC}"
+        cd - > /dev/null 2>/dev/null
+        return 1
+    fi
+    git am --abort 2>/dev/null || true
+
+    # Attempt 2: git apply --3way
     if git apply --3way "$patch_file" 2>/dev/null; then
         git add -A
-        local subject=$(grep "^Subject:" "$patch_file" | head -1 | sed 's/^Subject: \[PATCH[^]]*\] //')
-        git commit -m "${subject:-Applied $patch_name}" 2>/dev/null
-        cd - > /dev/null 2>/dev/null
-        return 0
-    fi
-    
-    git apply -C1 --reject "$patch_file" 2>/dev/null
-    local rejects=$(find . -name "*.rej" 2>/dev/null | wc -l)
-    local changes=$(git diff --name-only 2>/dev/null | wc -l)
-    
-    if [ "$changes" -gt 0 ] && [ "$rejects" -gt 0 ]; then
-        log "  ${YELLOW}  Partial: $changes files, $rejects rejects. Trying semantic fix...${NC}"
-        
-        for rej in $(find . -name "*.rej" 2>/dev/null); do
-            local target=$(echo "$rej" | sed 's/\.rej$//')
-            
-            if [ -f "$target" ]; then
-                local added_code=$(grep "^+" "$rej" | grep -v "^+++" | sed 's/^+//' | head -30)
-                
-                if [ -n "$added_code" ]; then
-                    local anchor_func=$(echo "$added_code" | grep -oE '[a-zA-Z_][a-zA-Z0-9_]*\s*\(' | head -1 | sed 's/($//')
-                    
-                    if [ -n "$anchor_func" ]; then
-                        local insert_line=$(grep -n "$anchor_func" "$target" | tail -1 | cut -d: -f1)
-                        
-                        if [ -n "$insert_line" ]; then
-                            log "  ${CYAN}  Semantic fix: inserting after '$anchor_func' at line $insert_line${NC}"
-                            
-                            local temp_file=$(mktemp)
-                            head -n "$insert_line" "$target" > "$temp_file"
-                            echo "$added_code" >> "$temp_file"
-                            tail -n +"$((insert_line + 1))" "$target" >> "$temp_file"
-                            mv "$temp_file" "$target"
-                            rm "$rej"
-                        fi
-                    fi
-                fi
-            fi
-        done
-        
-        local remaining_rejects=$(find . -name "*.rej" 2>/dev/null | wc -l)
-        
-        if [ "$remaining_rejects" -eq 0 ]; then
-            git add -A
-            git commit -m "Applied $patch_name (semantic fix)" 2>/dev/null
-            log "  ${GREEN}  ✓ All hunks applied with semantic resolution${NC}"
-            cd - > /dev/null 2>/dev/null
-            return 0
+        local subject=$(grep "^Subject:" "$patch_file" | head -1 | sed -E 's/^Subject: \[PATCH[^]]*\] //')
+        local author=$(grep "^From:" "$patch_file" | head -1 | sed -E 's/^From: //')
+        if [ -n "$author" ]; then
+            git commit --author="$author" -m "${subject:-Applied $patch_name}" 2>/dev/null || true
         else
-            git add -A
-            git commit -m "Partial: $patch_name ($remaining_rejects rejects remain)" 2>/dev/null || true
-            cd - > /dev/null 2>/dev/null
-            return 1
+            git commit -m "${subject:-Applied $patch_name}" 2>/dev/null || true
         fi
-    elif [ "$changes" -gt 0 ]; then
-        git add -A
-        git commit -m "Applied $patch_name (fuzz)" 2>/dev/null
+        log "  ${GREEN}✓  [Applied: 3way] $description${NC}"
         cd - > /dev/null 2>/dev/null
-        return 0
+        return 1
     fi
-    
+
+    # Attempt 3: git apply with fuzz
+    if git apply -C1 "$patch_file" 2>/dev/null; then
+        git add -A
+        local subject=$(grep "^Subject:" "$patch_file" | head -1 | sed -E 's/^Subject: \[PATCH[^]]*\] //')
+        git commit -m "${subject:-Applied $patch_name (fuzz)}" 2>/dev/null || true
+        log "  ${GREEN}✓  [Applied: fuzz] $description${NC}"
+        cd - > /dev/null 2>/dev/null
+        return 1
+    fi
+
+    log "  ${RED}✗  [FAILED] $description ($patch_name)${NC}"
     cd - > /dev/null 2>/dev/null
     return 2
 }
 
-# ── PATCH QUEUE (category order) ──────────────────────────────────
-# Patches applied in category order: OOS Camera → LTPO → Auto Brightness
-# Path format: actual_android_source_path|patch_dir_name|patch_file|description
+# ── PATCH QUEUE ──────────────────────────────────────────────────────
+# Format: repo_rel_path|patch_dir|patch_file|category|description
 declare -a PATCH_QUEUE=(
-    # ── CATEGORY: OOS Camera (OPlus camera functionality) ─────────
-    "frameworks/av|frameworks_av|0001-camera-Relax-monotonic-timestamp-guard-for-still-cap.patch|Camera: Relax monotonic timestamp guard"
-    "frameworks/av|frameworks_av|0002-camera-fix-Google-Lens-back-provider-deadlock-on-sha.patch|Camera: Fix Google-Lens→back provider deadlock"
-    "frameworks/av|frameworks_av|0003-Add-Oplus-user-data-member-to-StagefrightRecorder.patch|Camera: Add Oplus user data to StagefrightRecorder.h"
-    "frameworks/av|frameworks_av|0004-Implement-Oplus-user-data-handling-for-HDR.patch|Camera: Implement Oplus user data handling for HDR"
-    "frameworks/av|frameworks_av|0005-Add-kKeyOplusUserData-to-MetaDataBase.h.patch|Camera: Add kKeyOplusUserData to MetaDataBase.h"
-    "frameworks/av|frameworks_av|0006-HDR-FIX.-Enhance-MPEG4Writer-to-handle-Oplus-user-da.patch|Camera: MPEG4Writer Oplus user data handling"
-    "frameworks/av|frameworks_av|0007-libcameraservice-bypass-timestamp-monotonic-guard-fo.patch|Camera: Bypass timestamp monotonic guard for custom intent"
-    "frameworks/av|frameworks_av|0008-libcameraservice-gate-timestamp-guard-bypass-behind-.patch|Camera: Gate timestamp guard bypass behind ro.camera.relax_timestamp_guard"
-    "frameworks/base|frameworks_base|0001-wm-ActivityStarter-Redirect-proprietary-OPlus-file-m.patch|Camera: Redirect OPlus file manager"
-    "frameworks/base|frameworks_base|0002-base-ImageReader.getOplusHardwareBuffer-OnePlus-came.patch|Camera: ImageReader.getOplusHardwareBuffer()"
-    "art|art|0001-art.patch|Camera: drop non-AOSP global -O3"
-    "build/soong|build_soong|0001-build-soong.patch|Camera: Whitelist OPlus framework packages"
-    "device/qcom/sepolicy_vndr/sm8550|device_qcom_sepolicy_vndr|0001-sepolicy.patch|Camera: Add opluscamera_app DSP exceptions"
+    # Category 1: OOS Camera Port Core
+    "frameworks/av|frameworks_av|0001-av-add-OPlus-CameraService-extension-support.patch|OOS CAM|av: add OPlus CameraService extension support"
+    "frameworks/av|frameworks_av|0002-camera-Relax-monotonic-timestamp-guard-for-still-cap.patch|OOS CAM|camera: Relax monotonic timestamp guard for still captures"
+    "frameworks/av|frameworks_av|0003-camera-fix-Google-Lens-back-provider-deadlock-on-sha.patch|OOS CAM|camera: fix Google-Lens->back provider deadlock on shared rear sensor"
+    "frameworks/av|frameworks_av|0004-Add-Oplus-user-data-member-to-StagefrightRecorder.patch|OOS CAM|Add Oplus user data member to StagefrightRecorder"
+    "frameworks/av|frameworks_av|0005-Implement-Oplus-user-data-handling-for-HDR.patch|OOS CAM|Implement Oplus user data handling for HDR"
+    "frameworks/av|frameworks_av|0006-Add-kKeyOplusUserData-to-MetaDataBase.h.patch|OOS CAM|Add kKeyOplusUserData to MetaDataBase.h"
+    "frameworks/av|frameworks_av|0007-HDR-FIX.-Enhance-MPEG4Writer-to-handle-Oplus-user-da.patch|OOS CAM|HDR FIX: MPEG4Writer Oplus user data handling ('oplu' atom)"
+    "frameworks/av|frameworks_av|0008-libcameraservice-bypass-timestamp-monotonic-guard-fo.patch|OOS CAM|libcameraservice: bypass timestamp monotonic guard for custom intent"
+    "frameworks/av|frameworks_av|0009-libcameraservice-gate-timestamp-guard-bypass-behind-.patch|OOS CAM|libcameraservice: gate timestamp guard bypass behind ro.camera.relax_timestamp_guard"
+    "frameworks/av|frameworks_av|0010-libcameraservice-Add-camera-extension-infrastructure.patch|OOS CAM|libcameraservice: Add camera extension infrastructure and OEM prerequisites"
+    "frameworks/av|frameworks_av|0011-libcameraservice-Resolve-CAMERA_PACKAGE_NAME-conflic.patch|OOS CAM|libcameraservice: Resolve CAMERA_PACKAGE_NAME conflict via Soong config"
+    "frameworks/base|frameworks_base|0001-wm-ActivityStarter-Redirect-proprietary-OPlus-file-m.patch|OOS CAM|wm: ActivityStarter: Redirect proprietary OPlus file manager to DocumentsUI"
+    "frameworks/base|frameworks_base|0002-base-ImageReader.getOplusHardwareBuffer-OnePlus-came.patch|OOS CAM|base: ImageReader.getOplusHardwareBuffer() — no-cleaner buffer"
+    "frameworks/native|frameworks_native|0001-native-bump-BINDER_VM_SIZE-1MB-4MB-for-OPlus-camera-.patch|OOS CAM|native: bump BINDER_VM_SIZE 1MB->4MB for RAW/Master capture"
+    "build/soong|build_soong|0001-check_boot_jars-Whitelist-more-OPlus-framework-packa.patch|OOS CAM|check_boot_jars: Whitelist more OPlus framework packages"
+    "vendor/yaap|vendor_yaap|0001-BoardConfigSoong-Forward-TARGET_CAMERA_PACKAGE_NAME-.patch|OOS CAM|BoardConfigSoong: Forward TARGET_CAMERA_PACKAGE_NAME to camera:package_name"
+    "device/qcom/sepolicy_vndr/sm8550|device_qcom_sepolicy_vndr|0001-sm8550-Add-opluscamera_app-to-DSP-neverallow-excepti.patch|OOS CAM|sm8550: Add opluscamera_app to DSP neverallow exceptions"
 
-    # ── CATEGORY: LTPO (display refresh rate / panel control) ──────
-    "frameworks/native|frameworks_native|0001-surfaceflinger-RefreshRateOverlay-optional-panel-ref.patch|LTPO: RefreshRateOverlay panel refresh rate"
-    "frameworks/native|frameworks_native|0002-surfaceflinger-Flag-fullscreen-video-layers-in-HDR-l.patch|LTPO: Flag fullscreen video layers in HDR layer info"
-    "system/sepolicy|system_sepolicy|0001-sepolicy.patch|LTPO: Label panel_refresh_rate_node property"
+    # Category 2: Auto-Brightness & HDR
+    "frameworks/native|frameworks_native|0002-surfaceflinger-Flag-fullscreen-video-layers-in-HDR-l.patch|HDR|surfaceflinger: Flag fullscreen video layers in HDR layer info"
+    "frameworks/native|frameworks_native|0003-sensorservice-Load-the-OPLUS-fusion-light-engine-con.patch|AUTO BRIGHTNESS|sensorservice: Load the OPLUS fusion light engine (content-immune ALS)"
+    "frameworks/base|frameworks_base|0003-display-Fullscreen-HDR-brightness-pin-SDR-video-floo.patch|HDR & BRIGHTNESS|display: Fullscreen HDR brightness pin & SDR video floor"
+    "frameworks/base|frameworks_base|0004-display-Drop-fusion-ALS-hard-zero-samples-in-auto-br.patch|AUTO BRIGHTNESS|display: Drop fusion ALS hard-zero samples in auto-brightness"
 
-    # ── CATEGORY: Auto Brightness (Fusion Light Sensor / ALS) ─────
-    "frameworks/native|frameworks_native|0003-sensorservice-Load-the-OPLUS-fusion-light-engine-con.patch|Auto-Brightness: Load OPLUS fusion light engine (content-immune ALS)"
-    "frameworks/base|frameworks_base|0003-display-Fullscreen-HDR-brightness-pin-ignore-freefor.patch|Auto-Brightness: Fullscreen HDR brightness pin"
-    "frameworks/base|frameworks_base|0004-display-Brightness-floor-for-fullscreen-SDR-video.patch|Auto-Brightness: Brightness floor for fullscreen SDR video"
-    "frameworks/base|frameworks_base|0005-display-Drop-fusion-ALS-hard-zero-samples-in-auto-br.patch|Auto-Brightness: Drop fusion ALS hard-zero samples"
-    
-    # system sepolicy
-    "system/sepolicy|system_sepolicy|0001-sepolicy.patch|sepolicy: Label panel_refresh_rate_node property"
+    # Category 3: LTPO & Device Features (Applied if repos exist)
+    "kernel/oneplus/sm8550-modules|kernel_modules|0001-display-driver-oplus_adfr-Allow-force-enabling-of-AD.patch|LTPO|display-driver: oplus_adfr: Allow force enabling of ADFR (/sys/kernel/oplus_display/ltpo_enable)"
+    "device/oneplus/aston|device_oneplus_aston|0001-aston-Track-and-build-OplusParts.patch|LTPO & PARTS|aston: Track and build OplusParts, enable ADFR support"
+    "device/oneplus/aston|device_oneplus_aston|0002-aston-inherit-BCR.patch|DEVICE EXTRAS|aston: inherit BCR (Basic Call Recorder)"
+    "device/oneplus/sm8550-common|device_oneplus_sm8550_common|0001-sm8550-common-inherit-oplus-fwk.patch|DEVICE EXTRAS|sm8550-common: inherit oplus-fwk"
+    "vendor/yaap|vendor_yaap|0002-yaap-fix-dtb-naming-hash-and-cleanup-signing-keys-BU.patch|BUILD FIX|yaap: fix dtb naming hash and cleanup signing keys BUILD"
 )
 
-# ── MAIN ────────────────────────────────────────────────────────────
+# ── MAIN EXECUTION ───────────────────────────────────────────────────
 print_header
 
-log "${BOLD}${YELLOW}━━━ PATCH SEQUENCE (20 patches, category-ordered) ━━━${NC}"
-log ""
-
 TOTAL=${#PATCH_QUEUE[@]}
-current=0
+current_category=""
 
 for entry in "${PATCH_QUEUE[@]}"; do
-    IFS='|' read -r repo_path patch_dir_name patch_name description <<< "$entry"
-    ((current++))
-    
-    # Build full paths
-    full_repo_path="$LUNARIS_ROOT/$repo_path"
-    patch_file="$PATCH_DIR/$patch_dir_name/$patch_name"
-    
-    # Extract commit subject from patch
-    COMMIT_SUBJECT=$(grep "^Subject:" "$patch_file" 2>/dev/null | head -1 | sed 's/^Subject: \[PATCH[^]]*\] //' | cut -c1-60)
-    
-    print_progress "$current" "$TOTAL" "$patch_name"
-    log "  Description : $description"
-    log "  Commit      : $COMMIT_SUBJECT"
-    log "  Repository  : $full_repo_path"
-    
-    if [ ! -d "$full_repo_path" ]; then
-        log "  ${RED}✗ SKIP - Repository not found${NC}"
-        result "SKIP  | $repo_path | $COMMIT_SUBJECT | repo not found"
-        ((SKIPPED++))
+    IFS='|' read -r repo_path patch_dir patch_file category description <<< "$entry"
+
+    if [ "$category" != "$current_category" ]; then
+        current_category="$category"
         log ""
-        continue
+        log "${BOLD}${YELLOW}━━━ $current_category ━━━${NC}"
     fi
-    
-    if [ ! -f "$patch_file" ]; then
-        log "  ${RED}✗ SKIP - Patch file not found${NC}"
-        result "SKIP  | $repo_path | $COMMIT_SUBJECT | file not found"
+
+    full_repo="$ROM_ROOT/$repo_path"
+    full_patch="$PATCH_DIR/$patch_dir/$patch_file"
+
+    apply_single_patch "$full_repo" "$full_patch" "$description"
+    rc=$?
+
+    if [ $rc -eq 1 ]; then
+        ((APPLIED++))
+    elif [ $rc -eq 0 ]; then
         ((SKIPPED++))
-        log ""
-        continue
+    else
+        ((FAILED++))
     fi
-    
-    commit_id=$(head -1 "$patch_file" | sed 's/^From //' | awk '{print $1}')
-    
-    cd "$full_repo_path" 2>/dev/null
-    if git cat-file -e "$commit_id" 2>/dev/null; then
-        log "  ${GREEN}✓ SKIP - Commit already exists ($commit_id)${NC}"
-        result "SKIP  | $repo_path | $COMMIT_SUBJECT | already present"
-        ((SKIPPED++))
-        cd - > /dev/null 2>/dev/null
-        log ""
-        continue
-    fi
-    
-    if is_patch_content_present "$full_repo_path" "$patch_file"; then
-        log "  ${GREEN}✓ SKIP - Content already present in repo${NC}"
-        result "SKIP  | $repo_path | $COMMIT_SUBJECT | content already applied"
-        ((SKIPPED++))
-        cd - > /dev/null 2>/dev/null
-        log ""
-        continue
-    fi
-    
-    cd - > /dev/null 2>/dev/null
-    
-    log "  ${CYAN}⟳ Applying...${NC}"
-    
-    apply_patch "$full_repo_path" "$patch_file"
-    apply_result=$?
-    
-    case $apply_result in
-        0)
-            log "  ${GREEN}✓ APPLIED SUCCESSFULLY${NC}"
-            result "OK    | $repo_path | $COMMIT_SUBJECT | applied"
-            ((APPLIED++))
-            ;;
-        1)
-            log "  ${YELLOW}⚠ PARTIALLY APPLIED (semantic fix needed)${NC}"
-            result "PARTIAL | $repo_path | $COMMIT_SUBJECT | partial with semantic fix"
-            ((PARTIAL++))
-            ;;
-        2)
-            log "  ${RED}✗ FAILED - All strategies exhausted${NC}"
-            result "FAIL  | $repo_path | $COMMIT_SUBJECT | all strategies failed"
-            ((FAILED++))
-            ;;
-    esac
-    log ""
 done
 
-# ── SUMMARY ─────────────────────────────────────────────────────────
 log ""
 log "${BOLD}${BLUE}╔══════════════════════════════════════════════════════════════════╗${NC}"
-log "${BOLD}${BLUE}║                        RESULTS SUMMARY                         ║${NC}"
+log "${BOLD}${BLUE}║                     SUMMARY REPORT                               ║${NC}"
 log "${BOLD}${BLUE}╚══════════════════════════════════════════════════════════════════╝${NC}"
+log "  Total Patches : $TOTAL"
+log "  Applied       : ${GREEN}$APPLIED${NC}"
+log "  Skipped       : ${CYAN}$SKIPPED${NC}"
+log "  Failed        : ${RED}$FAILED${NC}"
+log "  Log File      : $LOG_FILE"
 log ""
-log "  Total patches : $TOTAL"
-log "  ${GREEN}Applied       : $APPLIED${NC}"
-log "  ${GREEN}Skipped       : $SKIPPED${NC}"
-log "  ${YELLOW}Partial       : $PARTIAL${NC}"
-log "  ${RED}Failed        : $FAILED${NC}"
-log ""
 
-# Show applied patches
-if [ "$APPLIED" -gt 0 ]; then
-    log "${GREEN}━━━ APPLIED ━━━${NC}"
-    grep "^OK" "$RESULT_FILE" 2>/dev/null | while IFS='|' read -r status repo commit reason; do
-        log "  ${GREEN}✓${NC} $(echo "$commit" | sed 's/^ *//' | cut -c1-60)"
-    done
-    log ""
+if [ $FAILED -gt 0 ]; then
+    log "${RED}Some patches failed to apply. Please check the log above.${NC}"
+    exit 1
+else
+    log "${GREEN}All applicable patches processed successfully!${NC}"
+    exit 0
 fi
-
-# Show skipped patches
-if [ "$SKIPPED" -gt 0 ]; then
-    log "${CYAN}━━━ SKIPPED (already present) ━━━${NC}"
-    grep "^SKIP" "$RESULT_FILE" 2>/dev/null | while IFS='|' read -r status repo commit reason; do
-        log "  ${CYAN}⏭${NC} $(echo "$commit" | sed 's/^ *//' | cut -c1-60)"
-    done
-    log ""
-fi
-
-# Show partial patches
-if [ "$PARTIAL" -gt 0 ]; then
-    log "${YELLOW}━━━ PARTIAL (needs review) ━━━${NC}"
-    grep "^PARTIAL" "$RESULT_FILE" 2>/dev/null | while IFS='|' read -r status repo commit reason; do
-        log "  ${YELLOW}⚠${NC} $(echo "$commit" | sed 's/^ *//' | cut -c1-60)"
-        log "         $reason"
-    done
-    log ""
-fi
-
-# Show failed patches
-if [ "$FAILED" -gt 0 ]; then
-    log "${RED}━━━ FAILED ━━━${NC}"
-    grep "^FAIL" "$RESULT_FILE" 2>/dev/null | while IFS='|' read -r status repo commit reason; do
-        log "  ${RED}✗${NC} $(echo "$commit" | sed 's/^ *//' | cut -c1-60)"
-        log "         $reason"
-    done
-    log ""
-fi
-
-log "${BOLD}  Detailed log  : $LOG_FILE${NC}"
-log ""
-log "${BOLD}${BLUE}══════════════════════════════════════════════════════════════════${NC}"

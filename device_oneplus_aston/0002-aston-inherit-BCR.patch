@@ -1,0 +1,26 @@
+From 73296e5fd252ba6fa10ef942078420d75cce3618 Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Fri, 2 Oct 2026 10:16:01 +0000
+Subject: [PATCH 2/2] aston: inherit BCR
+
+---
+ yaap_aston.mk | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/yaap_aston.mk b/yaap_aston.mk
+index 43a66d5..02b9e11 100644
+--- a/yaap_aston.mk
++++ b/yaap_aston.mk
+@@ -14,6 +14,9 @@ $(call inherit-product, device/oneplus/aston/device.mk)
+ # Inherit some common YAAP stuff.
+ $(call inherit-product, vendor/yaap/config/common_full_phone.mk)
+ 
++# BCR
++$(call inherit-product, vendor/bcr/bcr.mk)
++
+ # YAAP specific flags
+ TARGET_ENABLE_BLUR := true
+ TARGET_EXCLUDES_AUDIOFX := true
+-- 
+2.43.0
+

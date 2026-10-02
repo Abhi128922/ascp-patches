@@ -1,7 +1,8 @@
-From 054b109651d5dd1d8ce26f22a6bb7b0966807ad8 Mon Sep 17 00:00:00 2001
+From 747b3578bed16ba752167b787b5c0501b07c530e Mon Sep 17 00:00:00 2001
 From: elpaablo <donopwhile1@gmail.com>
-Date: Thu, 23 Jul 2026 21:01:00 +0100
-Subject: [PATCH] display: Drop fusion ALS hard-zero samples in auto-brightness
+Date: Fri, 2 Oct 2026 09:37:29 +0000
+Subject: [PATCH 4/4] display: Drop fusion ALS hard-zero samples in
+ auto-brightness
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -16,22 +17,14 @@ Drop samples ≤0.5 lux while ambient is already ≥2 lux. Gated by
 persist.alpha.drop_fusion_hard_zero (default true). Independent of the
 fullscreen video pin/floor path — this is normal UI content residual.
 ---
- .../AutomaticBrightnessController.java        | 56 +++++++++++++++++++
- 1 file changed, 56 insertions(+)
+ .../AutomaticBrightnessController.java        | 55 +++++++++++++++++++
+ 1 file changed, 55 insertions(+)
 
 diff --git a/services/core/java/com/android/server/display/AutomaticBrightnessController.java b/services/core/java/com/android/server/display/AutomaticBrightnessController.java
-index b8b4758277b22..10f83653dacc4 100644
+index dfe61ce2a..df6c15716 100644
 --- a/services/core/java/com/android/server/display/AutomaticBrightnessController.java
 +++ b/services/core/java/com/android/server/display/AutomaticBrightnessController.java
-@@ -43,6 +43,7 @@
- import android.os.PowerManager;
- import android.os.RemoteException;
- import android.os.SystemClock;
-+import android.os.SystemProperties;
- import android.os.Trace;
- import android.util.EventLog;
- import android.util.IndentingPrintWriter;
-@@ -104,6 +105,27 @@ public class AutomaticBrightnessController {
+@@ -111,6 +111,27 @@ public class AutomaticBrightnessController {
      // the user is satisfied with the result before storing the sample.
      private static final int BRIGHTNESS_ADJUSTMENT_SAMPLE_DEBOUNCE_MILLIS = 10000;
  
@@ -59,7 +52,7 @@ index b8b4758277b22..10f83653dacc4 100644
      private static final int MSG_UPDATE_AMBIENT_LUX = 1;
      private static final int MSG_BRIGHTNESS_ADJUSTMENT_SAMPLE = 2;
      private static final int MSG_INVALIDATE_CURRENT_SHORT_TERM_MODEL = 3;
-@@ -661,6 +683,9 @@ public void dump(PrintWriter pw) {
+@@ -696,6 +717,9 @@ public class AutomaticBrightnessController {
          ipw.println("mLastObservedLux=" + mLastObservedLux);
          ipw.println("mLastObservedLuxTime=" + TimeUtils.formatUptime(mLastObservedLuxTime));
          ipw.println("mRecentLightSamples=" + mRecentLightSamples);
@@ -69,7 +62,7 @@ index b8b4758277b22..10f83653dacc4 100644
          ipw.println("mAmbientLightRingBuffer=" + mAmbientLightRingBuffer);
          ipw.println("mScreenAutoBrightness=" + mScreenAutoBrightness);
          ipw.println("mDisplayPolicy=" + DisplayPowerRequest.policyToString(mDisplayPolicy));
-@@ -752,6 +777,14 @@ private void handleLightSensorEvent(long time, float lux) {
+@@ -787,6 +811,14 @@ public class AutomaticBrightnessController {
          Trace.traceCounter(Trace.TRACE_TAG_POWER, "ALS", (int) lux);
          mHandler.removeMessages(MSG_UPDATE_AMBIENT_LUX);
  
@@ -84,7 +77,7 @@ index b8b4758277b22..10f83653dacc4 100644
          if (mAmbientLightRingBuffer.size() == 0) {
              // switch to using the steady-state sample rate after grabbing the initial light sample
              adjustLightSensorRate(mNormalLightSensorRate);
-@@ -760,6 +793,29 @@ private void handleLightSensorEvent(long time, float lux) {
+@@ -795,6 +827,29 @@ public class AutomaticBrightnessController {
          updateAmbientLux(time);
      }
  
@@ -114,3 +107,6 @@ index b8b4758277b22..10f83653dacc4 100644
      private void applyLightSensorMeasurement(long time, float lux) {
          mRecentLightSamples++;
          mAmbientLightRingBuffer.prune(time - mAmbientLightHorizonLong);
+-- 
+2.43.0
+

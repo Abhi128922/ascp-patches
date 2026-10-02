@@ -1,0 +1,26 @@
+From 486c99b36271168b419574244e29cdd5e48f94a7 Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Fri, 2 Oct 2026 10:16:01 +0000
+Subject: [PATCH] sm8550-common: inherit oplus-fwk
+
+---
+ common.mk | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/common.mk b/common.mk
+index d47e228..46cc151 100644
+--- a/common.mk
++++ b/common.mk
+@@ -428,6 +428,8 @@ PRODUCT_PACKAGES += \
+ # Inherit from the proprietary files makefile.
+ $(call inherit-product, vendor/oneplus/sm8550-common/sm8550-common-vendor.mk)
+ 
++$(call inherit-product, hardware/oplus/oplus-fwk/oplus-fwk.mk)
++
+ #Bypass Charging
+ PRODUCT_PACKAGES += \
+     DeviceSettings
+\ No newline at end of file
+-- 
+2.43.0
+

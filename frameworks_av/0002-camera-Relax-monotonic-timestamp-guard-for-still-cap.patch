@@ -1,7 +1,7 @@
-From a4e5af5ddc85c99338d32784cf1c2a1ce97dab71 Mon Sep 17 00:00:00 2001
+From 28d9d77b31f51620b7f79d140b1c3c4ece38325a Mon Sep 17 00:00:00 2001
 From: elpaablo <donopwhile1@gmail.com>
 Date: Fri, 19 Jun 2026 10:33:08 +0100
-Subject: [PATCH 1/6] camera: Relax monotonic timestamp guard for still
+Subject: [PATCH 02/11] camera: Relax monotonic timestamp guard for still
  captures
 
 Oplus still-capture brackets (e.g. front portrait TurboHDR) deliver
@@ -19,10 +19,10 @@ guard for any still capture (not only ZSL still captures).
  1 file changed, 7 insertions(+), 1 deletion(-)
 
 diff --git a/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp b/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
-index 094395c797..74f648308c 100644
+index 6606421343..6ed5db03c9 100644
 --- a/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
 +++ b/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
-@@ -1031,8 +1031,14 @@ void collectAndRemovePendingOutputBuffers(bool useHalBufManager,
+@@ -1153,8 +1153,14 @@ void collectAndRemovePendingOutputBuffers(bool useHalBufManager,
          sp<NotificationListener> listener, InFlightRequest& request,
          SessionStatsBuilder& sessionStatsBuilder,
          std::vector<BufferToReturn> *returnableBuffers) {
@@ -39,5 +39,5 @@ index 094395c797..74f648308c 100644
              request.resultExtras.readoutTimestamp : 0;
      collectReturnableOutputBuffers(useHalBufManager, halBufferManagedStreams, listener,
 -- 
-2.34.1
+2.43.0
 

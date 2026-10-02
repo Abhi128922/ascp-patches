@@ -1,14 +1,14 @@
-From 0cdae0d3bff2b6b788b63f5cf52a3d9f819d09aa Mon Sep 17 00:00:00 2001
-From: elpaablo <donopwhile1@gmail.com>
-Date: Thu, 25 Jun 2026 18:27:37 +0100
-Subject: [PATCH 2/2] =?UTF-8?q?base:=20ImageReader.getOplusHardwareBuffer(?=
+From a2e47d623fdcab79e283d4d32ef37e2bba0f29e2 Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Fri, 2 Oct 2026 06:38:33 +0000
+Subject: [PATCH 2/4] =?UTF-8?q?base:=20ImageReader.getOplusHardwareBuffer(?=
  =?UTF-8?q?)=20=E2=80=94=20OnePlus=20camera=20no-cleaner=20HardwareBuffer?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
 
 Faithfully replicate stock OnePlus's getOplusHardwareBuffer path (derived from
-stock framework.jar + libandroid_runtime.so disasm, not the old reverted commit):
+stock framework.jar + libandroid_runtime.so disasm):
 
 - HardwareBuffer: add the no-cleaner (long, boolean) ctor (no NativeAllocationRegistry
   cleaner registered) and make close() free the native object directly via the same
@@ -24,27 +24,22 @@ SDK falls back to getHardwareBuffer(), whose GC-cleaner buffer can be freed whil
 still holds a raw pointer. Verified live: the SDK takes this path (no fallback), buffers
 are valid and bounded. Includes Log.i/ALOGI diagnostics.
 ---
- .../java/android/hardware/HardwareBuffer.java | 30 ++++++++++++-------
- core/java/android/media/ImageReader.java      | 17 +++++++----
- core/jni/android_hardware_HardwareBuffer.cpp  | 29 ++++++++++++++++++
- core/jni/android_media_ImageReader.cpp        | 26 ++++++----------
+ .../java/android/hardware/HardwareBuffer.java | 32 +++++++++++++++++--
+ core/java/android/media/ImageReader.java      | 17 ++++++++++
+ core/jni/android_hardware_HardwareBuffer.cpp  | 29 +++++++++++++++++
+ core/jni/android_media_ImageReader.cpp        | 20 ++++++++++++
  .../android_hardware_HardwareBuffer.h         |  8 +++++
- 5 files changed, 77 insertions(+), 33 deletions(-)
+ 5 files changed, 103 insertions(+), 3 deletions(-)
 
 diff --git a/core/java/android/hardware/HardwareBuffer.java b/core/java/android/hardware/HardwareBuffer.java
-index 8ce5b56af6c0..692d7a7dd525 100644
+index e16867659..2dba246f6 100644
 --- a/core/java/android/hardware/HardwareBuffer.java
 +++ b/core/java/android/hardware/HardwareBuffer.java
-@@ -401,14 +401,18 @@ public final class HardwareBuffer implements Parcelable, AutoCloseable {
+@@ -402,6 +402,23 @@ public final class HardwareBuffer implements Parcelable, AutoCloseable {
+         mCloseGuard.open("HardwareBuffer.close");
      }
  
-     /**
--     * Private use only. Called from JNI (ImageReader$SurfaceImage#nativeGetOplusHardwareBuffer)
--     * with a native object that is an {@code sp<GraphicBuffer>} holder rather than an
--     * {@code AHardwareBuffer}. Mirrors the stock OnePlus framework's {@code (JZ)V} constructor:
--     * it intentionally skips nEstimateSize()/registerNativeAllocation(), which assume an
--     * AHardwareBuffer; the native holder's lifetime is managed by the OnePlus camera (APS) side.
--     * The boolean argument only selects this overload.
++    /**
 +     * Private use only. Called from JNI
 +     * (ImageReader$SurfaceImage#nativeGetOplusHardwareBuffer) for the OnePlus camera (APS)
 +     * pipeline. No-cleaner variant of {@link #HardwareBuffer(long)}: it intentionally does
@@ -55,54 +50,53 @@ index 8ce5b56af6c0..692d7a7dd525 100644
 +     * {@link #finalize()} via the native finalizer. Mirrors the stock OnePlus framework's
 +     * {@code HardwareBuffer(long, boolean)} constructor; the boolean only selects this overload
 +     * and leaves {@link #mCleaner} {@code null}.
-      */
--    private HardwareBuffer(long nativeObject, boolean isGraphicBufferHolder) {
++     */
 +    private HardwareBuffer(long nativeObject, boolean isOplusLogic) {
-         mNativeObject = nativeObject;
-         mCloseGuard.open("HardwareBuffer.close");
-     }
-@@ -500,13 +504,17 @@ public final class HardwareBuffer implements Parcelable, AutoCloseable {
++        mNativeObject = nativeObject;
++        mCloseGuard.open("HardwareBuffer.close");
++    }
++
+     @Override
+     protected void finalize() throws Throwable {
+         try {
+@@ -523,9 +540,18 @@ public final class HardwareBuffer implements Parcelable, AutoCloseable {
      public void close() {
          if (!isClosed()) {
              mCloseGuard.close();
 -            mNativeObject = 0;
--            // mCleaner is null for buffers created via the HardwareBuffer(long, boolean)
--            // ctor (OnePlus sp<GraphicBuffer> holder); their native lifetime is owned by
--            // the caller, so there is nothing to free here.
-             if (mCleaner != null) {
+-            mCleaner.run();
+-            mCleaner = null;
++            if (mCleaner != null) {
 +                // Standard path: the NativeAllocationRegistry cleaner owns the native object.
 +                mNativeObject = 0;
-                 mCleaner.run();
-                 mCleaner = null;
++                mCleaner.run();
++                mCleaner = null;
 +            } else {
 +                // OnePlus getOplusHardwareBuffer() no-cleaner path: no cleaner was registered,
 +                // so free the native object directly via the same finalizer the registry would
 +                // have used. Mirrors stock OnePlus HardwareBuffer.close().
 +                NativeAllocationRegistry.applyFreeFunction(nGetNativeFinalizer(), mNativeObject);
 +                mNativeObject = 0;
-             }
++            }
          }
      }
+ 
 diff --git a/core/java/android/media/ImageReader.java b/core/java/android/media/ImageReader.java
-index e6456f319c73..78c1229f1020 100644
+index b26f4cc57..87f6a1fb3 100644
 --- a/core/java/android/media/ImageReader.java
 +++ b/core/java/android/media/ImageReader.java
-@@ -39,6 +39,7 @@ import android.os.Looper;
+@@ -38,6 +38,7 @@ import android.os.Handler;
+ import android.os.Looper;
  import android.os.ParcelFileDescriptor;
- import android.os.SystemProperties;
  import android.os.Trace;
 +import android.util.Log;
  import android.view.Surface;
  
  import com.android.internal.camera.flags.Flags;
-@@ -1295,13 +1296,19 @@ public class ImageReader implements AutoCloseable {
+@@ -1292,6 +1293,21 @@ public class ImageReader implements AutoCloseable {
              return nativeGetHardwareBuffer();
          }
  
--        // OnePlus camera (APS) extension: returns a HardwareBuffer whose native object is an
--        // sp<GraphicBuffer> holder (the layout APS expects for the picture_metadata stream),
--        // not an AHardwareBuffer. The OnePlus camera SDK calls this reflectively; without it
--        // the SDK falls back to getHardwareBuffer() and APS reads a malformed metadata size.
 +        /**
 +         * OnePlus camera (APS) extension. Returns a {@link HardwareBuffer} with no
 +         * NativeAllocationRegistry GC cleaner (its lifetime is owned by close()/finalize()),
@@ -110,21 +104,30 @@ index e6456f319c73..78c1229f1020 100644
 +         * without it the SDK falls back to getHardwareBuffer(), whose GC-managed buffer can be
 +         * freed while APS still holds a raw pointer to it during hold-to-record (use-after-free).
 +         */
-         public HardwareBuffer getOplusHardwareBuffer() {
-             throwISEIfImageIsInvalid();
--            return nativeGetOplusHardwareBuffer();
++        public HardwareBuffer getOplusHardwareBuffer() {
++            throwISEIfImageIsInvalid();
 +            HardwareBuffer hb = nativeGetOplusHardwareBuffer();
 +            Log.i("ImageReader", "getOplusHardwareBuffer() -> " + hb
 +                    + " (no-cleaner; APS-owned lifetime)");
 +            return hb;
-         }
- 
++        }
++
          @Override
+         public @NamedDataSpace int getDataSpace() {
+             throwISEIfImageIsInvalid();
+@@ -1447,6 +1463,7 @@ public class ImageReader implements AutoCloseable {
+         private synchronized native int nativeGetFormat(int readerFormat);
+         private synchronized native int nativeGetFenceFd();
+         private synchronized native HardwareBuffer nativeGetHardwareBuffer();
++        private synchronized native HardwareBuffer nativeGetOplusHardwareBuffer();
+     }
+ 
+     private synchronized native void nativeInit(Object weakSelf, int w, int h, int maxImgs,
 diff --git a/core/jni/android_hardware_HardwareBuffer.cpp b/core/jni/android_hardware_HardwareBuffer.cpp
-index c8059f39a34a..7f53ba00473b 100644
+index bea2d9840..a6cbe5ab3 100644
 --- a/core/jni/android_hardware_HardwareBuffer.cpp
 +++ b/core/jni/android_hardware_HardwareBuffer.cpp
-@@ -56,6 +56,8 @@ static struct {
+@@ -52,6 +52,8 @@ static struct {
      jclass clazz;
      jfieldID mNativeObject;
      jmethodID ctor;
@@ -133,7 +136,7 @@ index c8059f39a34a..7f53ba00473b 100644
  } gHardwareBufferClassInfo;
  
  class GraphicBufferWrapper {
-@@ -247,6 +249,31 @@ jobject android_hardware_HardwareBuffer_createFromAHardwareBuffer(
+@@ -243,6 +245,31 @@ jobject android_hardware_HardwareBuffer_createFromAHardwareBuffer(
      return hardwareBufferObj;
  }
  
@@ -165,7 +168,7 @@ index c8059f39a34a..7f53ba00473b 100644
  uint32_t android_hardware_HardwareBuffer_convertFromPixelFormat(uint32_t format) {
      return AHardwareBuffer_convertFromPixelFormat(format);
  }
-@@ -305,6 +332,8 @@ int register_android_hardware_HardwareBuffer(JNIEnv* env) {
+@@ -316,6 +343,8 @@ int register_android_hardware_HardwareBuffer(JNIEnv* env) {
              gHardwareBufferClassInfo.clazz, "mNativeObject", "J");
      gHardwareBufferClassInfo.ctor = GetMethodIDOrDie(env,
              gHardwareBufferClassInfo.clazz, "<init>", "(J)V");
@@ -175,51 +178,45 @@ index c8059f39a34a..7f53ba00473b 100644
      return err;
  }
 diff --git a/core/jni/android_media_ImageReader.cpp b/core/jni/android_media_ImageReader.cpp
-index 8e421518011c..b348b9f0c0c1 100644
+index 1a84de9b8..812ce61f8 100644
 --- a/core/jni/android_media_ImageReader.cpp
 +++ b/core/jni/android_media_ImageReader.cpp
-@@ -998,12 +998,12 @@ static jobject Image_getHardwareBuffer(JNIEnv* env, jobject thiz) {
+@@ -1015,6 +1015,24 @@ static jobject Image_getHardwareBuffer(JNIEnv* env, jobject thiz) {
+     // to link against libandroid.so
      return android_hardware_HardwareBuffer_createFromAHardwareBuffer(env, b);
  }
- 
--// OnePlus camera (APS) extension. Mirrors stock libandroid_runtime's
--// nativeGetOplusHardwareBuffer: hands back a HardwareBuffer whose native object is a
--// heap-allocated sp<GraphicBuffer> holder (NOT an AHardwareBuffer*), constructed via the
--// HardwareBuffer(long, boolean) ctor which skips AHardwareBuffer-based size/finalizer setup.
--// The OnePlus camera SDK reads mNativeObject expecting this sp<GraphicBuffer> layout; the
--// standard getHardwareBuffer() layout makes APS read a malformed camera_metadata size.
++
 +// OnePlus camera (APS) extension. The OnePlus camera SDK reflectively calls
 +// ImageReader$SurfaceImage.getOplusHardwareBuffer(); if it is absent the SDK falls back to the
 +// standard getHardwareBuffer(), whose HardwareBuffer carries a NativeAllocationRegistry GC
 +// cleaner. APS holds a raw pointer to the buffer across async frames during hold-to-record, so
 +// the GC can free it mid-use -> use-after-free. This variant returns a HardwareBuffer with no
 +// cleaner (lifetime owned by close()/finalize()), matching stock OnePlus behavior.
- static jobject Image_getOplusHardwareBuffer(JNIEnv* env, jobject thiz) {
-     BufferItem* buffer = Image_getBufferItem(env, thiz);
-     if (buffer == nullptr || buffer->mGraphicBuffer == nullptr) {
-@@ -1011,17 +1011,9 @@ static jobject Image_getOplusHardwareBuffer(JNIEnv* env, jobject thiz) {
-                 "Image is not initialized");
-         return NULL;
-     }
--    static jclass sHbClass = nullptr;
--    static jmethodID sHbHolderCtor = nullptr;
--    if (sHbClass == nullptr) {
--        jclass c = env->FindClass("android/hardware/HardwareBuffer");
--        sHbClass = (jclass) env->NewGlobalRef(c);
--        sHbHolderCtor = env->GetMethodID(sHbClass, "<init>", "(JZ)V");
--    }
--    // Strong-ref'd holder; lifetime owned by the OnePlus APS side (matches stock behavior).
--    sp<GraphicBuffer>* holder = new sp<GraphicBuffer>(buffer->mGraphicBuffer);
--    return env->NewObject(sHbClass, sHbHolderCtor,
--            reinterpret_cast<jlong>(holder), JNI_TRUE);
++static jobject Image_getOplusHardwareBuffer(JNIEnv* env, jobject thiz) {
++    BufferItem* buffer = Image_getBufferItem(env, thiz);
++    if (buffer == nullptr || buffer->mGraphicBuffer == nullptr) {
++        jniThrowException(env, "java/lang/IllegalStateException",
++                "Image is not initialized");
++        return NULL;
++    }
 +    ALOGI("getOplusHardwareBuffer: GraphicBuffer=%p (id=%" PRIu64 ") -> no-cleaner HardwareBuffer",
 +          buffer->mGraphicBuffer.get(), buffer->mGraphicBuffer->getId());
 +    return android_hardware_HardwareBuffer_createOplusFromGraphicBuffer(env, buffer->mGraphicBuffer);
- }
++}
  #endif
  
+ } // extern "C"
+@@ -1048,6 +1066,8 @@ static const JNINativeMethod gImageMethods[] = {
+ #ifdef __ANDROID__
+         {"nativeGetHardwareBuffer", "()Landroid/hardware/HardwareBuffer;",
+          (void*)Image_getHardwareBuffer},
++        {"nativeGetOplusHardwareBuffer", "()Landroid/hardware/HardwareBuffer;",
++         (void*)Image_getOplusHardwareBuffer},
+ #endif
+ };
+ 
 diff --git a/core/jni/include/android_runtime/android_hardware_HardwareBuffer.h b/core/jni/include/android_runtime/android_hardware_HardwareBuffer.h
-index 964c28f0a49f..b6c9606e3c0a 100644
+index 964c28f0a..b6c9606e3 100644
 --- a/core/jni/include/android_runtime/android_hardware_HardwareBuffer.h
 +++ b/core/jni/include/android_runtime/android_hardware_HardwareBuffer.h
 @@ -32,6 +32,14 @@ extern AHardwareBuffer* android_hardware_HardwareBuffer_getNativeHardwareBuffer(
@@ -238,5 +235,5 @@ index 964c28f0a49f..b6c9606e3c0a 100644
  extern uint32_t android_hardware_HardwareBuffer_convertFromPixelFormat(uint32_t format);
  
 -- 
-2.34.1
+2.43.0
 
