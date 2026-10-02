@@ -1,0 +1,162 @@
+From a1db6128a4d35ea32a3c6da27f3dcf3b1b396a60 Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Fri, 2 Oct 2026 19:40:11 +0000
+Subject: [PATCH] SystemUI: Fix font application to status bar clock
+
+1. Remove erroneous double quotes from fontFamily in TextAppearance.StatusBar.Default
+   which caused literal quote marks to be preserved in the family name string,
+   breaking font matching and fallback lookups.
+2. Defensively strip quotation marks from fontToOverride in FontController.
+3. Make Clock implement ConfigurationController.ConfigurationListener and track
+   its text appearance resource ID, refreshing its typeface and text appearance
+   on theme and font scale changes.
+4. Have PhoneStatusBarViewController refresh the status bar clock's text appearance
+   on onThemeChanged and onDensityOrFontScaleChanged, matching ShadeHeaderController.
+---
+ .../internal/util/yaap/FontController.java    |  1 +
+ packages/SystemUI/res/values/styles.xml       |  2 +-
+ .../phone/PhoneStatusBarViewController.kt     |  9 ++++
+ .../systemui/statusbar/policy/Clock.java      | 43 +++++++++++++++++--
+ 4 files changed, 50 insertions(+), 5 deletions(-)
+
+diff --git a/core/java/com/android/internal/util/yaap/FontController.java b/core/java/com/android/internal/util/yaap/FontController.java
+index b86aa7c5f..844011991 100644
+--- a/core/java/com/android/internal/util/yaap/FontController.java
++++ b/core/java/com/android/internal/util/yaap/FontController.java
+@@ -157,6 +157,7 @@ public class FontController {
+ 
+     private Typeface getOverrideTypefaceInternal(String fontToOverride) {
+         if (fontToOverride == null) return null;
++        fontToOverride = fontToOverride.replace("\"", "").trim();
+ 
+         String pkgName = getCurrentPackageName();
+ 
+diff --git a/packages/SystemUI/res/values/styles.xml b/packages/SystemUI/res/values/styles.xml
+index 317d93397..eea56f19a 100644
+--- a/packages/SystemUI/res/values/styles.xml
++++ b/packages/SystemUI/res/values/styles.xml
+@@ -19,7 +19,7 @@
+ 
+     <style name="TextAppearance.StatusBar.Default" parent="@*android:style/TextAppearance.StatusBar.Icon">
+         <item name="android:textSize">@dimen/status_bar_clock_size</item>
+-        <item name="android:fontFamily">"variable-label-large-emphasized"</item>
++        <item name="android:fontFamily">variable-label-large-emphasized</item>
+         <item name="android:textColor">@color/status_bar_clock_color</item>
+     </style>
+ 
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBarViewController.kt b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBarViewController.kt
+index f7391f0c0..66d0cc956 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBarViewController.kt
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBarViewController.kt
+@@ -171,6 +171,15 @@ private constructor(
+         object : ConfigurationController.ConfigurationListener {
+             override fun onDensityOrFontScaleChanged() {
+                 reloadDimens()
++                if (::clock.isInitialized) {
++                    clock.setTextAppearance(R.style.TextAppearance_StatusBar_Default)
++                }
++            }
++
++            override fun onThemeChanged() {
++                if (::clock.isInitialized) {
++                    clock.setTextAppearance(R.style.TextAppearance_StatusBar_Default)
++                }
+             }
+         }
+ 
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/policy/Clock.java b/packages/SystemUI/src/com/android/systemui/statusbar/policy/Clock.java
+index 376a59198..e6e2228fe 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/policy/Clock.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/policy/Clock.java
+@@ -69,7 +69,8 @@ import java.util.TimeZone;
+ public class Clock extends TextView implements
+         DemoModeCommandReceiver,
+         Tunable,
+-        DarkReceiver {
++        DarkReceiver,
++        ConfigurationController.ConfigurationListener {
+ 
+     public static final String CLOCK_SECONDS = "clock_seconds";
+     private static final String CLOCK_SUPER_PARCELABLE = "clock_super_parcelable";
+@@ -102,6 +103,8 @@ public class Clock extends TextView implements
+ 
+     private boolean mShouldApplyPadding = true;
+ 
++    private int mTextAppearanceResId;
++
+     /**
+      * Color to be set on this {@link TextView}, when wallpaperTextColor is <b>not</b> utilized.
+      */
+@@ -134,6 +137,15 @@ public class Clock extends TextView implements
+         } finally {
+             a.recycle();
+         }
++
++        TypedArray appearance = context.obtainStyledAttributes(attrs,
++                new int[]{android.R.attr.textAppearance}, defStyle, 0);
++        try {
++            mTextAppearanceResId = appearance.getResourceId(0, 0);
++        } finally {
++            appearance.recycle();
++        }
++
+         mBroadcastDispatcher = Dependency.get(BroadcastDispatcher.class);
+         mUserTracker = Dependency.get(UserTracker.class);
+         mInterestingConfigChanges = new InterestingConfigChanges(
+@@ -191,6 +203,7 @@ public class Clock extends TextView implements
+                     Dependency.get(Dependency.TIME_TICK_HANDLER), UserHandle.ALL);
+             Dependency.get(TunerService.class).addTunable(this, CLOCK_SECONDS,
+                     StatusBarIconController.ICON_HIDE_LIST);
++            Dependency.get(ConfigurationController.class).addCallback(this);
+             mUserTracker.addCallback(mUserChangedCallback, mContext.getMainExecutor());
+             mCurrentUserId = mUserTracker.getUserId();
+         }
+@@ -220,6 +233,7 @@ public class Clock extends TextView implements
+             mBroadcastDispatcher.unregisterReceiver(mIntentReceiver);
+             mAttached = false;
+             Dependency.get(TunerService.class).removeTunable(this);
++            Dependency.get(ConfigurationController.class).removeCallback(this);
+             mUserTracker.removeCallback(mUserChangedCallback);
+         }
+     }
+@@ -291,13 +305,34 @@ public class Clock extends TextView implements
+     public void onColorsChanged(boolean lightTheme) {
+         final Context context = new ContextThemeWrapper(mContext,
+                 lightTheme ? R.style.Theme_SystemUI_LightWallpaper : R.style.Theme_SystemUI);
+-        setTextColor(Utils.getColorAttrDefaultColor(context, R.attr.wallpaperTextColor));
++        mNonAdaptedColor = Utils.getColorAttrDefaultColor(context, R.attr.wallpaperTextColor);
++        setTextColor(mNonAdaptedColor);
++    }
++
++    @Override
++    public void setTextAppearance(int resId) {
++        super.setTextAppearance(resId);
++        mTextAppearanceResId = resId;
++        if (mNonAdaptedColor != 0) {
++            setTextColor(mNonAdaptedColor);
++        }
+     }
+ 
++    @Override
+     public void onDensityOrFontScaleChanged() {
+-        // Note that this class is not being registered as configuration listener when used
+-        // from compose. It will instead receive a normal "View#onConfigurationChanged".
+         reloadDimens();
++        refreshFont();
++    }
++
++    @Override
++    public void onThemeChanged() {
++        refreshFont();
++    }
++
++    private void refreshFont() {
++        int resId = mTextAppearanceResId != 0 ? mTextAppearanceResId : R.style.TextAppearance_StatusBar_Default;
++        setTextAppearance(resId);
++        updateClock();
+     }
+ 
+     /**
+-- 
+2.43.0
+
