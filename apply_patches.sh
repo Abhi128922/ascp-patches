@@ -155,8 +155,11 @@ declare -a PATCH_QUEUE=(
 
     # Category 3: LTPO & Device Features (Applied if repos exist)
     "kernel/oneplus/sm8550-modules|kernel_modules|0001-display-driver-oplus_adfr-Allow-force-enabling-of-AD.patch|LTPO|display-driver: oplus_adfr: Allow force enabling of ADFR (/sys/kernel/oplus_display/ltpo_enable)"
+    "frameworks/native|frameworks_native|0004-surfaceflinger-Use-Refresh-rate-values-from-Oplus-AD.patch|LTPO|surfaceflinger: Use Refresh rate values from Oplus ADFR"
+    "vendor/yaap|vendor_yaap|0003-BoardConfigSoong-Add-flags-for-SurfaceFlinger-Oplus-.patch|LTPO|BoardConfigSoong: Add flags for SurfaceFlinger Oplus ADFR and LTPO rates"
     "device/oneplus/aston|device_oneplus_aston|0001-aston-Track-and-build-OplusParts.patch|LTPO & PARTS|aston: Track and build OplusParts, enable ADFR support"
     "device/oneplus/aston|device_oneplus_aston|0002-aston-inherit-BCR.patch|DEVICE EXTRAS|aston: inherit BCR (Basic Call Recorder)"
+    "device/oneplus/aston|device_oneplus_aston|0003-aston-Enable-SurfaceFlinger-Oplus-ADFR-and-LTPO-rate.patch|LTPO|aston: Enable SurfaceFlinger Oplus ADFR and LTPO rates"
     "device/oneplus/sm8550-common|device_oneplus_sm8550_common|0001-sm8550-common-inherit-oplus-fwk.patch|DEVICE EXTRAS|sm8550-common: inherit oplus-fwk"
     "vendor/yaap|vendor_yaap|0002-yaap-fix-dtb-naming-hash-and-cleanup-signing-keys-BU.patch|BUILD FIX|yaap: fix dtb naming hash and cleanup signing keys BUILD"
 

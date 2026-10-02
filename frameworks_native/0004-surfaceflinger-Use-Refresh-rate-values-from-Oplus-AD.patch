@@ -1,0 +1,301 @@
+From 97a2fec889b123cefc4202c124f15afd1367947c Mon Sep 17 00:00:00 2001
+From: inferno0230 <mail@inferno0230.in>
+Date: Fri, 2 Oct 2026 11:33:24 +0000
+Subject: [PATCH] surfaceflinger: Use Refresh rate values from Oplus ADFR
+
+Change-Id: Id8f2355137c20a8539da008ba475c835161c5e7c
+Signed-off-by: inferno0230 <mail@inferno0230.in>
+---
+ services/surfaceflinger/Android.bp            |  8 +-
+ services/surfaceflinger/OplusAdfr.cpp         | 97 +++++++++++++++++++
+ services/surfaceflinger/OplusAdfr.h           | 49 ++++++++++
+ .../surfaceflinger/RefreshRateOverlay.cpp     | 20 ++++
+ services/surfaceflinger/RefreshRateOverlay.h  |  6 ++
+ services/surfaceflinger/SurfaceFlinger.cpp    | 13 +++
+ 6 files changed, 192 insertions(+), 1 deletion(-)
+ create mode 100644 services/surfaceflinger/OplusAdfr.cpp
+ create mode 100644 services/surfaceflinger/OplusAdfr.h
+
+diff --git a/services/surfaceflinger/Android.bp b/services/surfaceflinger/Android.bp
+index 16ebe6e..59a92c8 100644
+--- a/services/surfaceflinger/Android.bp
++++ b/services/surfaceflinger/Android.bp
+@@ -124,6 +124,9 @@ cc_defaults {
+             "-DARR_USE_OPLUS_LTPO_REFRESH_RATES=1",
+         ],
+         default: [],
++    }) + select(soong_config_variable("surfaceflinger", "supports_oplus_adfr"), {
++        true: ["-DOPLUS_ADFR"],
++        default: [],
+     }),
+ }
+ 
+@@ -346,7 +349,10 @@ filegroup {
+         "TunnelModeEnabledReporter.cpp",
+         "Utils/FenceUtils.cpp",
+         "WindowInfosListenerInvoker.cpp",
+-    ],
++    ] + select(soong_config_variable("surfaceflinger", "supports_oplus_adfr"), {
++        true: ["OplusAdfr.cpp"],
++        default: [],
++    }),
+ }
+ 
+ cc_defaults {
+diff --git a/services/surfaceflinger/OplusAdfr.cpp b/services/surfaceflinger/OplusAdfr.cpp
+new file mode 100644
+index 0000000..b595e3f
+--- /dev/null
++++ b/services/surfaceflinger/OplusAdfr.cpp
+@@ -0,0 +1,97 @@
++/*
++ * Copyright 2026 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "OplusAdfr.h"
++
++#include <fcntl.h>
++#include <sys/ioctl.h>
++#include <unistd.h>
++
++namespace android {
++
++namespace {
++
++constexpr const char* kOplusDisplayPath = "/dev/oplus_display";
++constexpr unsigned long kPanelIoctlGetDynamicTe = _IOWR('o', 0x5E, unsigned int);
++
++} // namespace
++
++OplusAdfr::~OplusAdfr() {
++    if (mDisplayFd >= 0) {
++        close(mDisplayFd);
++    }
++}
++
++Fps OplusAdfr::setFallbackRefreshRate(Fps fallbackRefreshRate) {
++    mFallbackRefreshRate = fallbackRefreshRate;
++    mSkipNextAnimateResolve = true;
++    return resolveRefreshRate(fallbackRefreshRate);
++}
++
++bool OplusAdfr::updateRefreshRate(Fps& refreshRate) {
++    if (!mFallbackRefreshRate) {
++        return false;
++    }
++
++    if (mSkipNextAnimateResolve) {
++        mSkipNextAnimateResolve = false;
++        return false;
++    }
++
++    const auto resolvedRefreshRate = resolveRefreshRate(*mFallbackRefreshRate);
++    if (isApproxEqual(resolvedRefreshRate, refreshRate)) {
++        return false;
++    }
++
++    refreshRate = resolvedRefreshRate;
++    return true;
++}
++
++bool OplusAdfr::ensureDisplayReady() {
++    if (mDisplayFd >= 0) {
++        return true;
++    }
++
++    if (mDisplayOpenAttempts >= kMaxDisplayOpenRetries) {
++        return false;
++    }
++    ++mDisplayOpenAttempts;
++
++    mDisplayFd = open(kOplusDisplayPath, O_RDONLY | O_CLOEXEC);
++    return mDisplayFd >= 0;
++}
++
++Fps OplusAdfr::resolveRefreshRate(Fps fallbackRefreshRate) {
++    const nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
++    if (mLastQueryNs != 0 && now - mLastQueryNs < kQueryIntervalNs) {
++        return mCachedFps.value_or(fallbackRefreshRate);
++    }
++    mLastQueryNs = now;
++
++    if (!ensureDisplayReady()) {
++        return mCachedFps.value_or(fallbackRefreshRate);
++    }
++
++    unsigned int refreshRate = 0;
++    if (ioctl(mDisplayFd, kPanelIoctlGetDynamicTe, &refreshRate) < 0 || refreshRate == 0) {
++        return mCachedFps.value_or(fallbackRefreshRate);
++    }
++
++    mCachedFps = Fps::fromValue(static_cast<int>(refreshRate));
++    return *mCachedFps;
++}
++
++} // namespace android
+diff --git a/services/surfaceflinger/OplusAdfr.h b/services/surfaceflinger/OplusAdfr.h
+new file mode 100644
+index 0000000..4294232
+--- /dev/null
++++ b/services/surfaceflinger/OplusAdfr.h
+@@ -0,0 +1,49 @@
++/*
++ * Copyright 2026 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#pragma once
++
++#include <optional>
++
++#include <scheduler/Fps.h>
++#include <utils/Timers.h>
++
++namespace android {
++
++class OplusAdfr {
++public:
++    OplusAdfr() = default;
++    ~OplusAdfr();
++
++    Fps setFallbackRefreshRate(Fps fallbackRefreshRate);
++    bool updateRefreshRate(Fps& refreshRate);
++
++private:
++    static constexpr nsecs_t kQueryIntervalNs = 150'000'000LL; // 150ms
++    static constexpr int kMaxDisplayOpenRetries = 5;
++
++    bool ensureDisplayReady();
++    Fps resolveRefreshRate(Fps fallbackRefreshRate);
++
++    nsecs_t mLastQueryNs = 0;
++    std::optional<Fps> mFallbackRefreshRate;
++    std::optional<Fps> mCachedFps;
++    int mDisplayFd = -1;
++    int mDisplayOpenAttempts = 0;
++    bool mSkipNextAnimateResolve = false;
++};
++
++} // namespace android
+diff --git a/services/surfaceflinger/RefreshRateOverlay.cpp b/services/surfaceflinger/RefreshRateOverlay.cpp
+index cc3a821..4ae8340 100644
+--- a/services/surfaceflinger/RefreshRateOverlay.cpp
++++ b/services/surfaceflinger/RefreshRateOverlay.cpp
+@@ -271,9 +271,15 @@ void RefreshRateOverlay::setLayerStack(ui::LayerStack stack) {
+ }
+ 
+ void RefreshRateOverlay::changeRefreshRate(Fps refreshRate, Fps renderFps) {
++#ifdef OPLUS_ADFR
++    mRefreshRate = mOplusAdfr.setFallbackRefreshRate(refreshRate);
++    mRenderFps = renderFps;
++    const auto buffer = getOrCreateBuffers(*mRefreshRate, renderFps, mIsVrrIdle)[mFrame];
++#else
+     mRefreshRate = refreshRate;
+     mRenderFps = renderFps;
+     const auto buffer = getOrCreateBuffers(refreshRate, renderFps, mIsVrrIdle)[mFrame];
++#endif
+     createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
+ }
+ 
+@@ -294,7 +300,21 @@ void RefreshRateOverlay::changeRenderRate(Fps renderFps) {
+ }
+ 
+ void RefreshRateOverlay::animate() {
++#ifdef OPLUS_ADFR
++    if (!mRefreshRate || !mRenderFps) return;
++
++    const bool refreshRateChanged = mOplusAdfr.updateRefreshRate(*mRefreshRate);
++
++    if (!mFeatures.test(Features::Spinner)) {
++        if (!refreshRateChanged) return;
++
++        const auto buffer = getOrCreateBuffers(*mRefreshRate, *mRenderFps, mIsVrrIdle)[mFrame];
++        createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
++        return;
++    }
++#else
+     if (!mFeatures.test(Features::Spinner) || !mRefreshRate) return;
++#endif
+ 
+     const auto& buffers = getOrCreateBuffers(*mRefreshRate, *mRenderFps, mIsVrrIdle);
+     mFrame = (mFrame + 1) % buffers.size();
+diff --git a/services/surfaceflinger/RefreshRateOverlay.h b/services/surfaceflinger/RefreshRateOverlay.h
+index 8da721b..1194a51 100644
+--- a/services/surfaceflinger/RefreshRateOverlay.h
++++ b/services/surfaceflinger/RefreshRateOverlay.h
+@@ -16,6 +16,9 @@
+ 
+ #pragma once
+ 
++#ifdef OPLUS_ADFR
++#include "OplusAdfr.h"
++#endif
+ #include "Utils/OverlayUtils.h"
+ 
+ #include <vector>
+@@ -94,6 +97,9 @@ private:
+ 
+     std::optional<Fps> mRefreshRate;
+     std::optional<Fps> mRenderFps;
++#ifdef OPLUS_ADFR
++    OplusAdfr mOplusAdfr;
++#endif
+     bool mIsVrrIdle = false;
+     size_t mFrame = 0;
+ 
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+index 7559f05..a5ce870 100644
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -3113,12 +3113,25 @@ bool SurfaceFlinger::commit(PhysicalDisplayId pacesetterId,
+         mPowerAdvisor->updateTargetWorkDuration(idealVsyncPeriod);
+     }
+ 
++#ifdef OPLUS_ADFR
++    {
++        Mutex::Autolock lock(mStateLock);
++        if (mRefreshRateOverlaySpinner || isRefreshRateOverlayEnabled()) {
++            for (const auto& [_, display] : mDisplays) {
++                if (display->isRefreshRateOverlayEnabled()) {
++                    display->animateRefreshRateOverlay();
++                }
++            }
++        }
++    }
++#else
+     if (mRefreshRateOverlaySpinner) {
+         Mutex::Autolock lock(mStateLock);
+         for (const auto& [_, display] : mDisplays) {
+             display->animateRefreshRateOverlay();
+         }
+     }
++#endif
+     if (mHdrSdrRatioOverlay) {
+         Mutex::Autolock lock(mStateLock);
+         for (const auto& [_, display] : mDisplays) {
+-- 
+2.43.0
+
