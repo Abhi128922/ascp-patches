@@ -159,6 +159,9 @@ declare -a PATCH_QUEUE=(
     "device/oneplus/aston|device_oneplus_aston|0002-aston-inherit-BCR.patch|DEVICE EXTRAS|aston: inherit BCR (Basic Call Recorder)"
     "device/oneplus/sm8550-common|device_oneplus_sm8550_common|0001-sm8550-common-inherit-oplus-fwk.patch|DEVICE EXTRAS|sm8550-common: inherit oplus-fwk"
     "vendor/yaap|vendor_yaap|0002-yaap-fix-dtb-naming-hash-and-cleanup-signing-keys-BU.patch|BUILD FIX|yaap: fix dtb naming hash and cleanup signing keys BUILD"
+
+    # Category 4: System-Wide Fonts
+    "frameworks/base|frameworks_base|0005-graphics-FontController-Implement-system-wide-font-c.patch|SYSTEM FONTS|graphics/FontController: Implement system-wide font coverage"
 )
 
 # ── MAIN EXECUTION ───────────────────────────────────────────────────
