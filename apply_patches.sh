@@ -164,10 +164,10 @@ declare -a PATCH_QUEUE=(
     "vendor/yaap|vendor_yaap|0002-yaap-fix-dtb-naming-hash-and-cleanup-signing-keys-BU.patch|BUILD FIX|yaap: fix dtb naming hash and cleanup signing keys BUILD"
     "vendor/yaap|vendor_yaap|0004-vendor-generate_json_build_info-Adapt-for-custom-ind.patch|OTA JSON|vendor: generate_json_build_info: Adapt for custom index and enable for homemade builds"
 
-    # Category 4: System-Wide Fonts
-    "frameworks/base|frameworks_base|0005-graphics-FontController-Implement-system-wide-font-c.patch|SYSTEM FONTS|graphics/FontController: Implement system-wide font coverage"
-    "frameworks/base|frameworks_base|0006-SystemUI-Fix-font-application-to-status-bar-clock.patch|SYSTEM FONTS|SystemUI: Fix font application to status bar clock"
-    "frameworks/base|frameworks_base|0007-graphics-FontController-Fix-infinite-recursion-in-Ty.patch|SYSTEM FONTS|graphics/FontController: Fix infinite recursion in Typeface and NPE in ActivityThread"
+    # Category 4: System-Wide Fonts (Disabled for now - preserved in patch repo)
+    # "frameworks/base|frameworks_base|0005-graphics-FontController-Implement-system-wide-font-c.patch|SYSTEM FONTS|graphics/FontController: Implement system-wide font coverage"
+    # "frameworks/base|frameworks_base|0006-SystemUI-Fix-font-application-to-status-bar-clock.patch|SYSTEM FONTS|SystemUI: Fix font application to status bar clock"
+    # "frameworks/base|frameworks_base|0007-graphics-FontController-Fix-infinite-recursion-in-Ty.patch|SYSTEM FONTS|graphics/FontController: Fix infinite recursion in Typeface and NPE in ActivityThread"
 )
 
 # ── MAIN EXECUTION ───────────────────────────────────────────────────
