@@ -156,6 +156,8 @@ declare -a PATCH_QUEUE=(
     # Category 3: LTPO & Device Features (Applied if repos exist)
     "kernel/oneplus/sm8550-modules|kernel_modules|0001-display-driver-oplus_adfr-Allow-force-enabling-of-AD.patch|LTPO|display-driver: oplus_adfr: Allow force enabling of ADFR (/sys/kernel/oplus_display/ltpo_enable)"
     "frameworks/native|frameworks_native|0004-surfaceflinger-Use-Refresh-rate-values-from-Oplus-AD.patch|LTPO|surfaceflinger: Use Refresh rate values from Oplus ADFR"
+    "frameworks/native|frameworks_native|0005-surfaceflinger-UdfpsExtension-Correct-UDFPS_TOUCHED_.patch|UDFPS|surfaceflinger: UdfpsExtension: Correct UDFPS_TOUCHED_LAYER_NAME to match SurfaceView layer"
+    "hardware/qcom-caf/bootctrl|hardware_qcom-caf_bootctrl|0001-bootctrl-Remove-duplicate-boot-service-binary-declar.patch|BUILD FIX|bootctrl: Remove duplicate boot-service binary declarations in favor of hardware/oplus"
     "vendor/yaap|vendor_yaap|0003-BoardConfigSoong-Add-flags-for-SurfaceFlinger-Oplus-.patch|LTPO|BoardConfigSoong: Add flags for SurfaceFlinger Oplus ADFR and LTPO rates"
     "device/oneplus/aston|device_oneplus_aston|0001-aston-Track-and-build-OplusParts.patch|LTPO & PARTS|aston: Track and build OplusParts, enable ADFR support"
     "device/oneplus/aston|device_oneplus_aston|0002-aston-inherit-BCR.patch|DEVICE EXTRAS|aston: inherit BCR (Basic Call Recorder)"
@@ -163,11 +165,7 @@ declare -a PATCH_QUEUE=(
     "device/oneplus/sm8550-common|device_oneplus_sm8550_common|0001-sm8550-common-inherit-oplus-fwk.patch|DEVICE EXTRAS|sm8550-common: inherit oplus-fwk"
     "vendor/yaap|vendor_yaap|0002-yaap-fix-dtb-naming-hash-and-cleanup-signing-keys-BU.patch|BUILD FIX|yaap: fix dtb naming hash and cleanup signing keys BUILD"
     "vendor/yaap|vendor_yaap|0004-vendor-generate_json_build_info-Adapt-for-custom-ind.patch|OTA JSON|vendor: generate_json_build_info: Adapt for custom index and enable for homemade builds"
-
-    # Category 4: System-Wide Fonts (Disabled for now - preserved in patch repo)
-    # "frameworks/base|frameworks_base|0005-graphics-FontController-Implement-system-wide-font-c.patch|SYSTEM FONTS|graphics/FontController: Implement system-wide font coverage"
-    # "frameworks/base|frameworks_base|0006-SystemUI-Fix-font-application-to-status-bar-clock.patch|SYSTEM FONTS|SystemUI: Fix font application to status bar clock"
-    # "frameworks/base|frameworks_base|0007-graphics-FontController-Fix-infinite-recursion-in-Ty.patch|SYSTEM FONTS|graphics/FontController: Fix infinite recursion in Typeface and NPE in ActivityThread"
+    "packages/apps/OpenDelta|packages_apps_OpenDelta|0001-OpenDelta-Adapt-for-unofficial-OTA-updates-and-custo.patch|OTA|OpenDelta: Adapt for unofficial OTA updates and custom file index"
 )
 
 # ── MAIN EXECUTION ───────────────────────────────────────────────────

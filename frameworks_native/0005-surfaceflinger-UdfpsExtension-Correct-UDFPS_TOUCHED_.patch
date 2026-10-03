@@ -1,0 +1,26 @@
+From 14136201cd97151ceec7f28dc356d5d033de9fb3 Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Sat, 3 Oct 2026 13:13:53 +0000
+Subject: [PATCH] surfaceflinger: UdfpsExtension: Correct
+ UDFPS_TOUCHED_LAYER_NAME to match SurfaceView layer
+
+---
+ .../include/compositionengine/UdfpsExtension.h                  | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/services/surfaceflinger/CompositionEngine/include/compositionengine/UdfpsExtension.h b/services/surfaceflinger/CompositionEngine/include/compositionengine/UdfpsExtension.h
+index 98ee237..7416db5 100644
+--- a/services/surfaceflinger/CompositionEngine/include/compositionengine/UdfpsExtension.h
++++ b/services/surfaceflinger/CompositionEngine/include/compositionengine/UdfpsExtension.h
+@@ -22,7 +22,7 @@
+ #define UDFPS_BIOMETRIC_PROMPT_LAYER_NAME "BiometricPrompt"
+ #define UDFPS_DIM_LAYER_NAME "Dim Layer for UDFPS"
+ #define UDFPS_LAYER_NAME "UdfpsControllerOverlay"
+-#define UDFPS_TOUCHED_LAYER_NAME " SurfaceView[UdfpsControllerOverlay](BLAST)"
++#define UDFPS_TOUCHED_LAYER_NAME "SurfaceView[UdfpsControllerOverlay]"
+ 
+ extern uint32_t getUdfpsDimZOrder(uint32_t z);
+ extern uint32_t getUdfpsZOrder(uint32_t z, bool touched);
+-- 
+2.43.0
+

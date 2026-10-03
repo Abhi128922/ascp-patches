@@ -1,0 +1,151 @@
+From 4a1e01df62225db72282db733f6766e9eff5af67 Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Fri, 2 Oct 2026 15:35:53 +0000
+Subject: [PATCH] OpenDelta: Adapt for unofficial OTA updates and custom file
+ index
+
+---
+ res/values/config.xml                         | 10 +--
+ src/eu/chainfire/opendelta/UpdateService.java | 64 ++++++++++++-------
+ 2 files changed, 46 insertions(+), 28 deletions(-)
+
+diff --git a/res/values/config.xml b/res/values/config.xml
+index e6b8776..bde0794 100644
+--- a/res/values/config.xml
++++ b/res/values/config.xml
+@@ -17,7 +17,7 @@
+ 	<string name="path_base">OpenDelta</string>
+ 
+ 	<!-- URL base to find the full zip files, %s is replaced to be property_device value. -->
+-	<string name="url_base_full" formatted="false">https://downloads.yaaprom.org/%s/</string>
++	<string name="url_base_full" formatted="false">https://files.gauravbuilds.xyz/release/%s/Yaap/</string>
+ 
+ 	<!-- URL base to find the full zip sha256sum files, %s is replaced to be property_device value. -->
+ 	<string name="url_base_full_sum" formatted="false">@string/url_base_full</string>
+@@ -26,16 +26,16 @@
+ 	<string name="url_base_suffix"></string>
+ 
+ 	<!-- the branch name to format URLs with -->
+-	<string name="url_branch_name">full-signed</string>
++	<string name="url_branch_name">gapps</string>
+ 
+ 	<!-- URL base to fetch all builds. first %s is replaced by branch name later on by property_device -->
+-	<string name="url_base_json" formatted="false">https://raw.githubusercontent.com/yaap/ota-info/%s/%s/%s.json</string>
++	<string name="url_base_json" formatted="false">https://raw.githubusercontent.com/gaurav-paul9/YAAP_OTA/%s/%s/%s.json</string>
+ 
+ 	<!-- github API url, pointing to the OTA json repo. %s formatted as described above -->
+-	<string name="url_api_history" formatted="false">https://api.github.com/repos/yaap/ota-info/commits?sha=%s&amp;path=%s/%s.json</string>
++	<string name="url_api_history" formatted="false">https://api.github.com/repos/gaurav-paul9/YAAP_OTA/commits?sha=%s&amp;path=%s/%s.json</string>
+ 
+ 	<!-- URL base to fetch cert jsons. first %s is replaced by branch name second by property_device -->
+-	<string name="url_cert_json" formatted="false">https://raw.githubusercontent.com/yaap/ota-info/%s/%s/cert.json</string>
++	<string name="url_cert_json" formatted="false">https://raw.githubusercontent.com/gaurav-paul9/YAAP_OTA/%s/%s/cert.json</string>
+ 
+ 	<!-- Whether device supports A/B performance flashing -->
+ 	<item name="support_ab_perf_mode" type="bool">false</item>
+diff --git a/src/eu/chainfire/opendelta/UpdateService.java b/src/eu/chainfire/opendelta/UpdateService.java
+index dd219f5..f2d36a4 100644
+--- a/src/eu/chainfire/opendelta/UpdateService.java
++++ b/src/eu/chainfire/opendelta/UpdateService.java
+@@ -928,6 +928,7 @@ public class UpdateService extends Service implements OnSharedPreferenceChangeLi
+         final String latestSUM = getLatestSHA256Sum(url);
+         final File file = new File(fn);
+         if (latestSUM != null){
++            if (latestSUM.equals("")) return true;
+             try {
+                 String fileSUM = getFileSHA256(file,
+                         getSUMProgress(State.ACTION_CHECKING_SUM, file.getName()));
+@@ -1358,15 +1359,25 @@ public class UpdateService extends Service implements OnSharedPreferenceChangeLi
+         if (mIsUrlOverride) {
+             sumUrl = mSumUrlOvr;
+         }
++        if (sumUrl == null || sumUrl.isEmpty()) {
++            return "";
++        }
++        if (!sumUrl.startsWith("http://") && !sumUrl.startsWith("https://")) {
++            return sumUrl;
++        }
+         String latestSum = Download.asString(sumUrl);
+         if (latestSum != null) {
+-            String sumPart = latestSum;
++            String sumPart = latestSum.trim();
++            if (sumPart.contains(" ")) {
++                sumPart = sumPart.split("\\s+")[0];
++            }
+             while (sumPart.length() > 64)
+                 sumPart = sumPart.substring(0, sumPart.length() - 1);
+             Logger.d("getLatestSHA256Sum - sha256sum = " + sumPart);
+             return sumPart;
+         }
+-        return null;
++        Logger.d("getLatestSHA256Sum - sum file not found on server, skipping sha check");
++        return "";
+     }
+ 
+     private static float getProgress(long current, long total) {
+@@ -1502,6 +1513,10 @@ public class UpdateService extends Service implements OnSharedPreferenceChangeLi
+                                 urlOverride = build.getString("url");
+                             if (build.has("sha256url"))
+                                 sumOverride = build.getString("sha256url");
++                            else if (build.has("sha256"))
++                                sumOverride = build.getString("sha256");
++                            else if (build.has("id"))
++                                sumOverride = build.getString("id");
+                             if (build.has("datetime"))
+                                 buildDateTime = build.getLong("datetime");
+                             if (build.has("payload")) {
+@@ -1776,27 +1791,30 @@ public class UpdateService extends Service implements OnSharedPreferenceChangeLi
+         File fn = new File(flashFilename);
+         if (!forceFlash) {
+             File shaFile = new File(flashFilename + ".sha256sum");
+-            if (!shaFile.exists()) {
+-                mState.update(State.ACTION_FLASH_FILE_NO_SUM, fn.getName());
+-                return;
+-            }
+-            // verify sha with local file
+-            String sha;
+-            try (BufferedReader br = new BufferedReader(new FileReader(shaFile))) {
+-                sha = br.readLine();
+-                while (sha.length() > 64)
+-                    sha = sha.substring(0, sha.length() - 1);
+-            } catch (Exception e) {
+-                Logger.ex(e);
+-                mState.update(State.ACTION_FLASH_FILE_INVALID_SUM, fn.getName());
+-                return;
+-            }
+-            final ProgressListener listener = getSUMProgress(
+-                    State.ACTION_CHECKING_SUM, flashFilename);
+-            final String fileSha = getFileSHA256(fn, listener);
+-            if (fileSha == null || sha == null || !fileSha.equals(sha)) {
+-                mState.update(State.ACTION_FLASH_FILE_INVALID_SUM, fn.getName());
+-                return;
++            if (shaFile.exists()) {
++                // verify sha with local file
++                String sha;
++                try (BufferedReader br = new BufferedReader(new FileReader(shaFile))) {
++                    sha = br.readLine();
++                    if (sha != null && sha.contains(" ")) {
++                        sha = sha.split("\\s+")[0];
++                    }
++                    while (sha != null && sha.length() > 64)
++                        sha = sha.substring(0, sha.length() - 1);
++                } catch (Exception e) {
++                    Logger.ex(e);
++                    mState.update(State.ACTION_FLASH_FILE_INVALID_SUM, fn.getName());
++                    return;
++                }
++                final ProgressListener listener = getSUMProgress(
++                        State.ACTION_CHECKING_SUM, flashFilename);
++                final String fileSha = getFileSHA256(fn, listener);
++                if (fileSha == null || sha == null || !fileSha.equals(sha)) {
++                    mState.update(State.ACTION_FLASH_FILE_INVALID_SUM, fn.getName());
++                    return;
++                }
++            } else {
++                Logger.d("maybeFlashFile - no local .sha256sum file, skipping sum check");
+             }
+         }
+         Logger.d("Set flash possible: %s", flashFilename);
+-- 
+2.43.0
+
