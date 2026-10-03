@@ -1,15 +1,15 @@
-From a6dd4392c7f32b95e8cad781eee5a825b7c57821 Mon Sep 17 00:00:00 2001
+From 17ac44f8815eeed98cad3ae54a9a262d6597b737 Mon Sep 17 00:00:00 2001
 From: gaurav-paul9 <paulgaurav9@gmail.com>
 Date: Fri, 2 Oct 2026 17:09:34 +0000
 Subject: [PATCH] vendor: generate_json_build_info: Adapt for custom index and
  enable for homemade builds
 
 ---
- tools/generate_json_build_info.sh | 24 +++++++++++-------------
- 1 file changed, 11 insertions(+), 13 deletions(-)
+ tools/generate_json_build_info.sh | 31 ++++++++++++++++---------------
+ 1 file changed, 16 insertions(+), 15 deletions(-)
 
 diff --git a/tools/generate_json_build_info.sh b/tools/generate_json_build_info.sh
-index f6fa3f2..2686e98 100755
+index f6fa3f2..b9115a8 100755
 --- a/tools/generate_json_build_info.sh
 +++ b/tools/generate_json_build_info.sh
 @@ -38,7 +38,7 @@ file_path=$1
@@ -44,18 +44,25 @@ index f6fa3f2..2686e98 100755
      if ! return 0 &> /dev/null; then
          exit 0
      fi
-@@ -75,8 +71,8 @@ if payload_properties=$(unzip -p "$file_path" payload_properties.txt); then
+@@ -73,10 +69,13 @@ if payload_properties=$(unzip -p "$file_path" payload_properties.txt); then
+     keyPairs=$(printf '%s\n' "$payload_properties" | sed "s/=/\": \"/" | sed 's/^/          \"/' | sed 's/$/\"\,/')
+     keyPairs=${keyPairs%?}
  fi
- # get date from props
- datetime=$(grep "ro.build.date.utc" "${file_dir}/system/build.prop" | cut -d '=' -f 2)
+-# get date from props
+-datetime=$(grep "ro.build.date.utc" "${file_dir}/system/build.prop" | cut -d '=' -f 2)
 -file_url="${base_url}/${device_code}/${file_name}"
 -[[ ! $TARGET_BUILD_GAPPS ]] && file_url="${base_url}/${device_code}/vanilla/${file_name}"
++# get date directly from the zip's internal OTA metadata to guarantee 100% exact match with the flashed build
++datetime=$(unzip -p "$file_path" META-INF/com/android/metadata 2>/dev/null | grep "^post-timestamp=" | cut -d '=' -f 2)
++if [[ -z "$datetime" && -f "${file_dir}/system/build.prop" ]]; then
++    datetime=$(grep "ro.build.date.utc" "${file_dir}/system/build.prop" | cut -d '=' -f 2)
++fi
 +file_url="${base_url}/${device_code}/Yaap/${file_name}"
 +sha256=$(cat "${file_path}.sha256sum" 2>/dev/null | cut -d ' ' -f 1)
  
  {
      echo    "{"
-@@ -84,8 +80,10 @@ file_url="${base_url}/${device_code}/${file_name}"
+@@ -84,8 +83,10 @@ file_url="${base_url}/${device_code}/${file_name}"
      echo    "    {"
      echo    "      \"datetime\": ${datetime},"
      echo    "      \"filename\": \"${file_name}\","
