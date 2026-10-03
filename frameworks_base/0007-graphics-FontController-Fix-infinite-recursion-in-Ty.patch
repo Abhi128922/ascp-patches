@@ -1,0 +1,265 @@
+From 07f52c96ac4eddff16a2ba1daf131c5f2a0e908a Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Sat, 3 Oct 2026 11:11:12 +0000
+Subject: [PATCH] graphics/FontController: Fix infinite recursion in Typeface
+ and NPE in ActivityThread
+
+---
+ core/java/android/app/ActivityThread.java     | 11 ++-
+ .../internal/util/yaap/FontController.java    | 49 ++++++++---
+ graphics/java/android/graphics/Typeface.java  | 81 ++++++++++++++++++-
+ 3 files changed, 125 insertions(+), 16 deletions(-)
+
+diff --git a/core/java/android/app/ActivityThread.java b/core/java/android/app/ActivityThread.java
+index 926cc3a9f..ba1190d18 100644
+--- a/core/java/android/app/ActivityThread.java
++++ b/core/java/android/app/ActivityThread.java
+@@ -7299,7 +7299,12 @@ public final class ActivityThread extends ClientTransactionHandler
+         mConfigurationController.handleConfigurationChanged(config);
+         updateDeviceIdForNonUIContexts(deviceId);
+ 
+-        FontController.OnConfigurationChanged(getApplication().getResources());
++        Application app = getApplication();
++        if (app != null && app.getResources() != null) {
++            FontController.OnConfigurationChanged(app.getResources());
++        } else if (mSystemContext != null) {
++            FontController.OnConfigurationChanged(mSystemContext.getResources());
++        }
+ 
+         // These are only done to maintain @UnsupportedAppUsage and should be removed someday.
+         mCurDefaultDisplayDpi = mConfigurationController.getCurDefaultDisplayDpi();
+@@ -8104,7 +8109,9 @@ public final class ActivityThread extends ClientTransactionHandler
+                 false /* securityViolation */, true /* includeCode */,
+                 false /* registerPackage */, isSdkSandbox);
+ 
+-        FontController.OnConfigurationChanged(data.info.getResources());
++        if (data.info != null && data.info.getResources() != null) {
++            FontController.OnConfigurationChanged(data.info.getResources());
++        }
+ 
+         if (isSdkSandbox) {
+             data.info.setSdkSandboxStorage(data.sdkSandboxClientAppVolumeUuid,
+diff --git a/core/java/com/android/internal/util/yaap/FontController.java b/core/java/com/android/internal/util/yaap/FontController.java
+index 844011991..a122d7d08 100644
+--- a/core/java/com/android/internal/util/yaap/FontController.java
++++ b/core/java/com/android/internal/util/yaap/FontController.java
+@@ -42,6 +42,8 @@ public class FontController {
+ 
+     private volatile String sFontFamily = "sans-serif";
+ 
++    private volatile boolean mInitialized = false;
++
+     private static final String DEFAULT_FONT_ROOT = "google-sans-flex";
+ 
+     private static final String[] DEFAULT_FONT_FALLBACKS = {
+@@ -171,6 +173,9 @@ public class FontController {
+         }
+ 
+         String currentFont = getCurrentFont();
++        if (TextUtils.isEmpty(currentFont) || TextUtils.equals(currentFont, "sans-serif")) {
++            return null;
++        }
+ 
+         if (fontToOverride.matches("^" + Pattern.quote(currentFont) + "(-.*)?$")) {
+             logger(fontToOverride + " matches current font root '" + currentFont + "', skipping override!");
+@@ -202,32 +207,50 @@ public class FontController {
+     }
+ 
+     private Typeface resolveDefaultTypeface() {
+-        // First try to resolve the currently active custom font directly
+         String currentFont = getCurrentFont();
+-        if (currentFont != null && !currentFont.isEmpty()) {
+-            Typeface tf = Typeface.getSystemDefaultTypeface(currentFont);
+-            if (tf != null && tf != Typeface.DEFAULT) {
+-                logger("resolveDefaultTypeface: resolved current font '" + currentFont + "'");
+-                return tf;
+-            }
++        if (TextUtils.isEmpty(currentFont) || "sans-serif".equals(currentFont)) {
++            return Typeface.getConcreteDefaultTypeface();
++        }
++
++        // First try to resolve the currently active custom font directly
++        Typeface tf = Typeface.getSystemDefaultTypeface(currentFont);
++        if (tf != null && tf != Typeface.DEFAULT && tf != Typeface.SANS_SERIF) {
++            logger("resolveDefaultTypeface: resolved current font '" + currentFont + "'");
++            return Typeface.unwrap(tf);
+         }
++
+         // Fall back through known default font aliases
+         for (String family : DEFAULT_FONT_FALLBACKS) {
+-            Typeface tf = Typeface.getSystemDefaultTypeface(family);
+-            if (tf != null && tf != Typeface.DEFAULT) {
++            if ("sans-serif".equals(family)) continue;
++            Typeface fallbackTf = Typeface.getSystemDefaultTypeface(family);
++            if (fallbackTf != null && fallbackTf != Typeface.DEFAULT && fallbackTf != Typeface.SANS_SERIF) {
+                 logger("resolveDefaultTypeface: resolved via fallback '" + family + "'");
+-                return tf;
++                return Typeface.unwrap(fallbackTf);
+             }
+         }
+-        logger("resolveDefaultTypeface: all fallbacks failed, using DEFAULT");
+-        return Typeface.DEFAULT;
++        logger("resolveDefaultTypeface: all fallbacks failed, using concrete system DEFAULT");
++        return Typeface.getConcreteDefaultTypeface();
+     }
+ 
+     private void handleOnConfiguration(Resources res) {
++        if (res == null) return;
+         sResources = res;
+         String pkgName = getCurrentPackageName();
+         if (pkgName == null || EXCLUDED_APPS.contains(pkgName)) return;
+-        logger("handleOnConfiguration: Changing default font to: " + Typeface.getFontName());
++
++        String prevFont = sFontFamily;
++        String currFont = getCurrentFont();
++
++        if (!mInitialized) {
++            mInitialized = true;
++            if (TextUtils.equals(currFont, "sans-serif")) {
++                return;
++            }
++        } else if (TextUtils.equals(prevFont, currFont)) {
++            return;
++        }
++
++        logger("handleOnConfiguration: Changing default font from " + prevFont + " to: " + currFont);
+         Typeface.changeFont();
+     }
+ 
+diff --git a/graphics/java/android/graphics/Typeface.java b/graphics/java/android/graphics/Typeface.java
+index 2aa3df11c..098927300 100644
+--- a/graphics/java/android/graphics/Typeface.java
++++ b/graphics/java/android/graphics/Typeface.java
+@@ -173,6 +173,8 @@ public class Typeface {
+ 
+     @GuardedBy("SYSTEM_FONT_MAP_LOCK")
+     static Typeface sDefaultTypeface;
++    private static Typeface sOriginalDefaultTypeface = null;
++    private static Typeface sOriginalDefaultBoldTypeface = null;
+ 
+     /**
+      * sSystemFontMap is read only and unmodifiable.
+@@ -230,6 +232,10 @@ public class Typeface {
+             if (pendingTypeface == null) {
+                 throw new IllegalStateException("The Typeface is not fully initialized.");
+             }
++            if (pendingTypeface == this) {
++                Log.e(TAG, "Detected self-referential pending Typeface: " + this);
++                return native_instance;
++            }
+             return pendingTypeface.getNativeInstance();
+         } else {
+             return native_instance;
+@@ -266,6 +272,46 @@ public class Typeface {
+         }
+     }
+ 
++    /** @hide */
++    public static Typeface unwrap(@Nullable Typeface tf) {
++        if (tf == null) return null;
++        Typeface curr = tf;
++        int depth = 0;
++        while (curr != null && curr.mPendingTypeface != null && depth < 10) {
++            Typeface next = curr.mPendingTypeface.get();
++            if (next == null || next == curr) {
++                break;
++            }
++            curr = next;
++            depth++;
++        }
++        return curr;
++    }
++
++    /** @hide */
++    public static Typeface getConcreteDefaultTypeface() {
++        if (sOriginalDefaultTypeface != null && sOriginalDefaultTypeface.mPendingTypeface == null) {
++            return sOriginalDefaultTypeface;
++        }
++        Typeface unwrapped = unwrap(DEFAULT);
++        if (unwrapped != null && unwrapped.mPendingTypeface == null) {
++            return unwrapped;
++        }
++        return DEFAULT;
++    }
++
++    /** @hide */
++    public static Typeface getConcreteDefaultBoldTypeface() {
++        if (sOriginalDefaultBoldTypeface != null && sOriginalDefaultBoldTypeface.mPendingTypeface == null) {
++            return sOriginalDefaultBoldTypeface;
++        }
++        Typeface unwrapped = unwrap(DEFAULT_BOLD);
++        if (unwrapped != null && unwrapped.mPendingTypeface == null) {
++            return unwrapped;
++        }
++        return DEFAULT_BOLD;
++    }
++
+     // Runtime re-point of an initialized placeholder (e.g. DEFAULT): the static final field
+     // can't be reassigned, so swap what the placeholder resolves to instead. If this instance
+     // is not (or is no longer) a placeholder — e.g. setSystemFontMap() took the non-Zygote
+@@ -277,7 +323,22 @@ public class Typeface {
+                     + " is not a placeholder Typeface, cannot repoint in place.");
+             return false;
+         }
+-        mPendingTypeface.set(resolvedTypeface);
++
++        Typeface concrete = unwrap(resolvedTypeface);
++        if (concrete == null || concrete == this || concrete.mPendingTypeface != null) {
++            if (this == DEFAULT_BOLD) {
++                concrete = getConcreteDefaultBoldTypeface();
++            } else {
++                concrete = getConcreteDefaultTypeface();
++            }
++        }
++
++        if (concrete == this || (concrete != null && concrete.mPendingTypeface != null && concrete.mPendingTypeface.get() == this)) {
++            Log.e(TAG, "updatePendingTypeface: refusing circular reference on " + this);
++            return false;
++        }
++
++        mPendingTypeface.set(concrete);
+         return true;
+     }
+ 
+@@ -1617,6 +1678,9 @@ public class Typeface {
+         // sSystemFontMap by their list name, falling back through known
+         // aliases to Typeface.DEFAULT.
+         Typeface tf = FontController.resolveBaseTypeface();
++        if (tf == null) {
++            tf = getConcreteDefaultTypeface();
++        }
+ 
+         Typeface tfBold = create(tf, BOLD);
+         Typeface tfItalic = create(tf, ITALIC);
+@@ -1662,6 +1726,13 @@ public class Typeface {
+ 
+             // We can't assume DEFAULT_FAMILY available on Roboletric.
+             if (sSystemFontMap.containsKey(DEFAULT_FAMILY)) {
++                if (sOriginalDefaultTypeface == null) {
++                    Typeface concreteDefault = sSystemFontMap.get(DEFAULT_FAMILY);
++                    if (concreteDefault != null && concreteDefault.mPendingTypeface == null) {
++                        sOriginalDefaultTypeface = concreteDefault;
++                    }
++                }
++
+                 initializePendingTypefaceLocked(SANS_SERIF, "sans-serif", sSystemFontMap);
+                 initializePendingTypefaceLocked(SERIF, "serif", sSystemFontMap);
+                 initializePendingTypefaceLocked(MONOSPACE, "monospace", sSystemFontMap);
+@@ -1677,6 +1748,14 @@ public class Typeface {
+                 DEFAULT_BOLD.completeTypefaceInitialization(
+                         create(DEFAULT_FAMILY, Typeface.BOLD));
+ 
++                if (sOriginalDefaultBoldTypeface == null && DEFAULT_BOLD.mPendingTypeface != null) {
++                    sOriginalDefaultBoldTypeface = DEFAULT_BOLD.mPendingTypeface.get();
++                }
++
++                if (sOriginalDefaultTypeface == null && SANS_SERIF.mPendingTypeface != null) {
++                    sOriginalDefaultTypeface = SANS_SERIF.mPendingTypeface.get();
++                }
++
+             } else {
+                 // Robolectric disables Typeface static initializer and call
+                 // loadPreinstalledSystemFontMap to load system font map manually when the class is
+-- 
+2.43.0
+

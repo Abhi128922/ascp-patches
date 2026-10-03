@@ -166,6 +166,8 @@ declare -a PATCH_QUEUE=(
 
     # Category 4: System-Wide Fonts
     "frameworks/base|frameworks_base|0005-graphics-FontController-Implement-system-wide-font-c.patch|SYSTEM FONTS|graphics/FontController: Implement system-wide font coverage"
+    "frameworks/base|frameworks_base|0006-SystemUI-Fix-font-application-to-status-bar-clock.patch|SYSTEM FONTS|SystemUI: Fix font application to status bar clock"
+    "frameworks/base|frameworks_base|0007-graphics-FontController-Fix-infinite-recursion-in-Ty.patch|SYSTEM FONTS|graphics/FontController: Fix infinite recursion in Typeface and NPE in ActivityThread"
 )
 
 # ── MAIN EXECUTION ───────────────────────────────────────────────────
