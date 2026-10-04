@@ -1,53 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <manifest>
-  <!-- ====================================================================== -->
-  <!-- YAAP 17 Local Manifest for OnePlus 12R / Ace 3 (aston / sm8550)       -->
-  <!-- ====================================================================== -->
-
-  <!-- Remove conflicting or outdated default projects -->
-  <remove-project name="hardware_qcom-caf_common" />
-  <remove-project name="android_hardware_qcom_display" />
-  <remove-project name="android_hardware_qcom_audio-ar" />
-  <remove-project name="android_vendor_qcom_opensource_agm" />
-  <remove-project name="android_vendor_qcom_opensource_audioreach-graphservices" />
-  <remove-project name="android_vendor_qcom_opensource_arpal-lx" />
-  <remove-project name="android_packages_resources_devicesettings" />
-  <remove-project name="frameworks_opt_telephony" />
-  <remove-project name="android_vendor_codeaurora_telephony" />
-  <remove-project name="android_device_qcom_sepolicy_vndr" />
-
-  <!-- Device Trees (Aston & SM8550 Common) -->
-  <project path="device/oneplus/aston" name="gaurav-paul9/android_device_oneplus_aston_yaap" remote="github" revision="seventeen" />
-  <project path="device/oneplus/sm8550-common" name="gaurav-paul9/android_device_oneplus_sm8550-common_yaap" remote="github" revision="seventeen" />
-
-  <!-- Kernel, Modules, and Devicetrees -->
-  <project path="kernel/oneplus/sm8550" name="gaurav-paul9/android_kernel_oneplus_sm8550" remote="github" revision="seventeen" clone-depth="1" />
-  <project path="kernel/oneplus/sm8550-modules" name="LineageOS/android_kernel_oneplus_sm8550-modules" remote="github" revision="lineage-24.0" clone-depth="1" />
-  <project path="kernel/oneplus/sm8550-devicetrees" name="LineageOS/android_kernel_oneplus_sm8550-devicetrees" remote="github" revision="lineage-24.0" clone-depth="1" />
+  <!-- Device Trees -->
+  <project path="device/oneplus/aston" name="Abhi128922/android_device_oneplus_aston" remote="github" revision="ascp-17" />
+  <project path="device/oneplus/sm8550-common" name="Abhi128922/android_device_oneplus_sm8550-common" remote="github" revision="ascp-17" />
 
   <!-- Hardware & Interfaces -->
-  <project path="hardware/oplus" name="gaurav-paul9/hardware_oplus_yaap" remote="github" revision="seventeen" />
-  <project path="hardware/qcom-caf/sm8550/display" name="gaurav-paul9/android_hardware_qcom_display" remote="github" revision="seventeen" />
+  <project path="hardware/oplus" name="Abhi128922/hardware_oplus" remote="github" revision="ascp-17" />
   <project path="hardware/pixelworks/interfaces" name="LineageOS/android_hardware_pixelworks_interfaces" remote="github" revision="lineage-24.0" />
-  <project path="hardware/dolby" name="inferno0230/hardware_dolby" remote="github" revision="seventeen" />
+  <project path="hardware/dolby" name="Abhi128922/hardware_dolby" remote="github" revision="ascp-17" />
 
-  <!-- Audio CAF SM8550 (Lineage 24.0) -->
-  <project path="hardware/qcom-caf/sm8550/audio/primary-hal" name="LineageOS/android_hardware_qcom_audio-ar" remote="github" revision="lineage-24.0-caf-sm8550" />
-  <project path="hardware/qcom-caf/sm8550/audio/agm" name="LineageOS/android_vendor_qcom_opensource_agm" remote="github" revision="lineage-24.0-caf-sm8550" />
-  <project path="hardware/qcom-caf/sm8550/audio/graphservices" name="LineageOS/android_vendor_qcom_opensource_audioreach-graphservices" remote="github" revision="lineage-24.0-caf-sm8550" />
-  <project path="hardware/qcom-caf/sm8550/audio/pal" name="LineageOS/android_vendor_qcom_opensource_arpal-lx" remote="github" revision="lineage-24.0-caf-sm8550" />
-  <project path="hardware/qcom-caf/common" name="LineageOS/android_hardware_qcom-caf_common" remote="github" revision="lineage-24.0" />
-
-  <!-- Vendor Sepolicy, Telephony, DeviceSettings -->
-  <project path="device/qcom/sepolicy_vndr/sm8550" name="LineageOS/android_device_qcom_sepolicy_vndr" remote="github" revision="lineage-24.0-caf-sm8550" />
-  <project path="packages/resources/devicesettings" name="LineageOS/android_packages_resources_devicesettings" remote="github" revision="lineage-24.0" />
-  <project path="frameworks/opt/telephony" name="LineageOS/android_frameworks_opt_telephony" remote="github" revision="lineage-24.0" />
-  <project path="vendor/codeaurora/telephony" name="LineageOS/android_vendor_codeaurora_telephony" remote="github" revision="lineage-24.0" />
+  <!-- Kernel, Modules, and Devicetrees -->
+  <project path="kernel/oneplus/sm8550" name="Abhi128922/android_kernel_oneplus_sm8550" remote="github" revision="ascp-17" />
+  <project path="kernel/oneplus/sm8550-modules" name="Abhi128922/android_kernel_oneplus_sm8550-modules" remote="github" revision="ascp-17" />
+  <project path="kernel/oneplus/sm8550-devicetrees" name="Abhi128922/android_kernel_oneplus_sm8550-devicetrees" remote="github" revision="ascp-17" />
 
   <!-- Proprietary Vendor Blobs & Oplus Packages -->
-  <project path="vendor/oneplus/aston" name="gauravpaul9/vendor_oneplus_aston" remote="gitlab" revision="main" />
-  <project path="vendor/oneplus/sm8550-common" name="gauravpaul9/proprietary_vendor_oneplus_sm8550-common_yaap" remote="gitlab" revision="yaap" />
-  <project path="vendor/oplus/camera" name="gauravpaul9/vendor_oplus_camera" remote="gitlab" revision="alpha-16.2" />
-  <project path="vendor/oneplus/fusion" name="alphadroid-project/vendor_oneplus_fusion" remote="gitlab" revision="alpha-16.2" />
-  <project path="packages/apps/OplusParts" name="gaurav-paul9/android_packages_apps_OplusParts" remote="github" revision="seventeen" />
+  <project path="vendor/oneplus/aston" name="Abhi128922/android_vendor_oneplus_aston" remote="github" revision="ascp-17" />
+  <project path="vendor/oneplus/sm8550-common" name="Abhi128922/android_vendor_oneplus_sm8550-common" remote="github" revision="ascp-17" />
+  <project path="vendor/oplus/camera" name="gauravpaul9/vendor_oplus_camera" remote="gitlab" revision="alpha-16.2" clone-depth="1" />
+  <project path="vendor/oneplus/fusion" name="alphadroid-project/vendor_oneplus_fusion" remote="gitlab" revision="alpha-16.2" clone-depth="1" />
+  <project path="vendor/oneplus/dolby" name="alphadroid-project/vendor_oneplus_dolby" remote="gitlab" revision="alpha-16.2" clone-depth="1" />
+  <project path="vendor/oneplus/ir" name="crdroidandroid/proprietary_vendor_oneplus_ir" remote="gitlab" revision="17.0" clone-depth="1" />
+
 </manifest>

@@ -1,0 +1,25 @@
+From 11e6521bf0a7bf7a4092076f7d1684e5f593c570 Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Sun, 4 Oct 2026 03:29:36 +0000
+Subject: [PATCH] AutomaticBrightnessController: import
+ android.os.SystemProperties
+
+---
+ .../android/server/display/AutomaticBrightnessController.java    | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/services/core/java/com/android/server/display/AutomaticBrightnessController.java b/services/core/java/com/android/server/display/AutomaticBrightnessController.java
+index 4fb28b33f..11f6632c1 100644
+--- a/services/core/java/com/android/server/display/AutomaticBrightnessController.java
++++ b/services/core/java/com/android/server/display/AutomaticBrightnessController.java
+@@ -45,6 +45,7 @@ import android.os.Message;
+ import android.os.PowerManager;
+ import android.os.RemoteException;
+ import android.os.SystemClock;
++import android.os.SystemProperties;
+ import android.os.Trace;
+ import android.provider.Settings;
+ import android.util.EventLog;
+-- 
+2.43.0
+

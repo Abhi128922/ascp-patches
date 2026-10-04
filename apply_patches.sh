@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
-# YAAP Aston (OnePlus Ace 3 / 12R) Source Patches Applicator
-# Applies OOS Camera, Auto-Brightness, HDR, and LTPO patches to YAAP 17 source
+# ASCP Aston (OnePlus Ace 3 / 12R) Source Patches Applicator
+# Applies OOS Camera, Auto-Brightness, HDR, and LTPO patches to ASCP 17 source
 # Usage: From ROM source root:
 #        bash /path/to/apply_patches.sh .
 # ==============================================================================
@@ -32,7 +32,7 @@ result() { echo "$1" >> "$RESULT_FILE"; }
 print_header() {
     log ""
     log "${BOLD}${BLUE}╔══════════════════════════════════════════════════════════════════╗${NC}"
-    log "${BOLD}${BLUE}║   YAAP Aston (OnePlus 12R) Source Patches Applicator (A17)       ║${NC}"
+    log "${BOLD}${BLUE}║   ASCP Aston (OnePlus 12R) Source Patches Applicator (A17)       ║${NC}"
     log "${BOLD}${BLUE}╚══════════════════════════════════════════════════════════════════╝${NC}"
     log ""
     log "  Source : $PATCH_DIR"
@@ -150,8 +150,10 @@ declare -a PATCH_QUEUE=(
     # Category 2: Auto-Brightness & HDR
     "frameworks/native|frameworks_native|0002-surfaceflinger-Flag-fullscreen-video-layers-in-HDR-l.patch|HDR|surfaceflinger: Flag fullscreen video layers in HDR layer info"
     "frameworks/native|frameworks_native|0003-sensorservice-Load-the-OPLUS-fusion-light-engine-con.patch|AUTO BRIGHTNESS|sensorservice: Load the OPLUS fusion light engine (content-immune ALS)"
+    "frameworks/native|frameworks_native|0006-sensorservice-OplusFusionExt-check-persist.ascp.fusi.patch|AUTO BRIGHTNESS|sensorservice: OplusFusionExt: check persist.ascp.fusion_light"
     "frameworks/base|frameworks_base|0003-display-Fullscreen-HDR-brightness-pin-SDR-video-floo.patch|HDR & BRIGHTNESS|display: Fullscreen HDR brightness pin & SDR video floor"
     "frameworks/base|frameworks_base|0004-display-Drop-fusion-ALS-hard-zero-samples-in-auto-br.patch|AUTO BRIGHTNESS|display: Drop fusion ALS hard-zero samples in auto-brightness"
+    "frameworks/base|frameworks_base|0005-AutomaticBrightnessController-import-android.os.Syst.patch|AUTO BRIGHTNESS|AutomaticBrightnessController: import android.os.SystemProperties"
 
     # Category 3: LTPO & Device Features (Applied if repos exist)
     "kernel/oneplus/sm8550-modules|kernel_modules|0001-display-driver-oplus_adfr-Allow-force-enabling-of-AD.patch|LTPO|display-driver: oplus_adfr: Allow force enabling of ADFR (/sys/kernel/oplus_display/ltpo_enable)"
