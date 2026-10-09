@@ -258,6 +258,7 @@ declare -a PATCH_QUEUE=(
     # Category 5: Lindroid Convergence Support
     "frameworks/native|frameworks_native|0007-inputflinger-allow-disabling-input-devices-via-idc.patch|LINDROID|inputflinger: allow disabling input devices via idc"
     "kernel/oneplus/sm8550|kernel|0001-kernel-lindroid-support.patch|LINDROID|kernel: Add Lindroid and LXC container support"
+    "vendor/lindroid|vendor_lindroid|0001-sepolicy-Drop-undefined-init_dir_mutation_exempt-att.patch|LINDROID|sepolicy: Drop undefined init_dir_mutation_exempt attribute"
 )
 
 # ── MAIN EXECUTION ───────────────────────────────────────────────────
