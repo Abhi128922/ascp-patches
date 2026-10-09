@@ -123,6 +123,20 @@ is_patch_already_applied() {
                 return 0
             fi
             ;;
+        *inputflinger-allow-disabling-input-devices-via-idc*)
+            if [ -f "services/inputflinger/reader/EventHub.cpp" ] && \
+               grep -q "device\.disabled" "services/inputflinger/reader/EventHub.cpp" 2>/dev/null; then
+                cd - > /dev/null 2>/dev/null
+                return 0
+            fi
+            ;;
+        *kernel-lindroid-support*)
+            if [ -f "drivers/Makefile" ] && \
+               grep -q "lindroid-drm" "drivers/Makefile" 2>/dev/null; then
+                cd - > /dev/null 2>/dev/null
+                return 0
+            fi
+            ;;
     esac
 
     cd - > /dev/null 2>/dev/null
@@ -240,6 +254,10 @@ declare -a PATCH_QUEUE=(
     "device/oneplus/aston|device_oneplus_aston|0002-aston-inherit-BCR.patch|DEVICE EXTRAS|aston: inherit BCR (Basic Call Recorder)"
     "device/oneplus/aston|device_oneplus_aston|0003-aston-Enable-SurfaceFlinger-Oplus-ADFR-and-LTPO-rate.patch|LTPO|aston: Enable SurfaceFlinger Oplus ADFR and LTPO rates"
     "device/oneplus/sm8550-common|device_oneplus_sm8550_common|0001-sm8550-common-inherit-oplus-fwk.patch|DEVICE EXTRAS|sm8550-common: inherit oplus-fwk"
+
+    # Category 5: Lindroid Convergence Support
+    "frameworks/native|frameworks_native|0007-inputflinger-allow-disabling-input-devices-via-idc.patch|LINDROID|inputflinger: allow disabling input devices via idc"
+    "kernel/oneplus/sm8550|kernel|0001-kernel-lindroid-support.patch|LINDROID|kernel: Add Lindroid and LXC container support"
 )
 
 # ── MAIN EXECUTION ───────────────────────────────────────────────────

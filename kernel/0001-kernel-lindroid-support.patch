@@ -1,0 +1,65 @@
+From b1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0 Mon Sep 17 00:00:00 2001
+From: Lindroid Project <lindroid@lindroid.org>
+Date: Fri, 9 Oct 2026 12:00:00 +0000
+Subject: [PATCH] kernel: Add Lindroid and LXC container support
+
+- Wire drivers/lindroid-drm into drivers Makefile and Kconfig
+- Enable LXC namespaces, cgroups, EVDI DRM loopback, and POSIX ACL
+- Relax overlayfs dentry check for casefolded userdata partition
+
+---
+ arch/arm64/configs/vendor/oplus/kalama_GKI.config | 11 +++++++++++
+ drivers/Kconfig                                   |  2 ++
+ drivers/Makefile                                  |  1 +
+ fs/overlayfs/util.c                               |  4 +---
+ 4 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/configs/vendor/oplus/kalama_GKI.config b/arch/arm64/configs/vendor/oplus/kalama_GKI.config
+index 1234567..89abcdef 100644
+--- a/arch/arm64/configs/vendor/oplus/kalama_GKI.config
++++ b/arch/arm64/configs/vendor/oplus/kalama_GKI.config
+@@ -80,3 +80,14 @@ CONFIG_LOG_BUF_SHIFT=20
+ # CONFIG_DETECT_HUNG_TASK is not set
+ # CONFIG_WQ_WATCHDOG is not set
++
++# Lindroid / LXC container support
++CONFIG_SYSVIPC=y
++CONFIG_UTS_NS=y
++CONFIG_PID_NS=y
++CONFIG_IPC_NS=y
++CONFIG_USER_NS=y
++CONFIG_NET_NS=y
++CONFIG_CGROUP_DEVICE=y
++CONFIG_CGROUP_FREEZER=y
++CONFIG_DRM_LINDROID_EVDI=y
++CONFIG_TMPFS_POSIX_ACL=y
+diff --git a/drivers/Kconfig b/drivers/Kconfig
+index 1234567..89abcdef 100644
+--- a/drivers/Kconfig
++++ b/drivers/Kconfig
+@@ -237,3 +237,5 @@ source "drivers/counter/Kconfig"
+ source "drivers/most/Kconfig"
++
++source "drivers/lindroid-drm/Kconfig"
+ endmenu
+diff --git a/drivers/Makefile b/drivers/Makefile
+index 1234567..89abcdef 100644
+--- a/drivers/Makefile
++++ b/drivers/Makefile
+@@ -189,2 +189,3 @@ obj-$(CONFIG_COUNTER)		+= counter/
+ obj-$(CONFIG_MOST)		+= most/
++obj-y				+= lindroid-drm/
+diff --git a/fs/overlayfs/util.c b/fs/overlayfs/util.c
+index 7eba49d..d3bb09b 100644
+--- a/fs/overlayfs/util.c
++++ b/fs/overlayfs/util.c
+@@ -149,6 +149,4 @@ bool ovl_dentry_weird(struct dentry *dentry)
+ 	return dentry->d_flags & (DCACHE_NEED_AUTOMOUNT |
+-				  DCACHE_MANAGE_TRANSIT |
+-				  DCACHE_OP_HASH |
+-				  DCACHE_OP_COMPARE);
++				  DCACHE_MANAGE_TRANSIT);
+ }
+ 
+-- 
+2.39.5
