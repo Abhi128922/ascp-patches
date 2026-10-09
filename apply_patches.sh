@@ -248,7 +248,6 @@ declare -a PATCH_QUEUE=(
     "kernel/oneplus/sm8550-modules|kernel_modules|0001-display-driver-oplus_adfr-Allow-force-enabling-of-AD.patch|LTPO|display-driver: oplus_adfr: Allow force enabling of ADFR (/sys/kernel/oplus_display/ltpo_enable)"
     "frameworks/native|frameworks_native|0004-surfaceflinger-Use-Refresh-rate-values-from-Oplus-AD.patch|LTPO|surfaceflinger: Use Refresh rate values from Oplus ADFR"
     "frameworks/native|frameworks_native|0005-surfaceflinger-UdfpsExtension-Correct-UDFPS_TOUCHED_.patch|UDFPS|surfaceflinger: UdfpsExtension: Correct UDFPS_TOUCHED_LAYER_NAME to match SurfaceView layer"
-    "hardware/qcom-caf/bootctrl|hardware_qcom-caf_bootctrl|0001-bootctrl-Remove-duplicate-boot-service-binary-declar.patch|BUILD FIX|bootctrl: Remove duplicate boot-service binary declarations in favor of hardware/oplus"
     "vendor/oneplus/fusion|vendor_oneplus_fusion|0001-fusion-Drop-duplicate-vendor.oplus.hardware.oplusSen.patch|BUILD FIX|fusion: Drop duplicate vendor.oplus.hardware.oplusSensor-V1-ndk prebuilt in favor of hardware/oplus"
     "device/oneplus/aston|device_oneplus_aston|0001-aston-Track-and-build-OplusParts.patch|LTPO & PARTS|aston: Track and build OplusParts, enable ADFR support"
     "device/oneplus/aston|device_oneplus_aston|0002-aston-inherit-BCR.patch|DEVICE EXTRAS|aston: inherit BCR (Basic Call Recorder)"
