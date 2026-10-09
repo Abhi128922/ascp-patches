@@ -259,6 +259,7 @@ declare -a PATCH_QUEUE=(
     "frameworks/native|frameworks_native|0007-inputflinger-allow-disabling-input-devices-via-idc.patch|LINDROID|inputflinger: allow disabling input devices via idc"
     "kernel/oneplus/sm8550|kernel|0001-kernel-lindroid-support.patch|LINDROID|kernel: Add Lindroid and LXC container support"
     "system/sepolicy|system_sepolicy|0002-sepolicy-Add-Lindroid-perspectived-support-and-init_.patch|LINDROID|sepolicy: Add Lindroid perspectived support and init_dir_mutation_exempt"
+    "device/oneplus/aston|device_oneplus_aston|0004-aston-Disable-OTA-VINTF-kernel-requirements-enforcem.patch|LINDROID|aston: Disable OTA VINTF kernel requirements enforcement for Lindroid"
 )
 
 # ── MAIN EXECUTION ───────────────────────────────────────────────────
