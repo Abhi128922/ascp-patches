@@ -1,7 +1,7 @@
-From 28d9d77b31f51620b7f79d140b1c3c4ece38325a Mon Sep 17 00:00:00 2001
+From f8793c8cb2b81c32d15ad191afcee0f4c72dfcf5 Mon Sep 17 00:00:00 2001
 From: elpaablo <donopwhile1@gmail.com>
 Date: Fri, 19 Jun 2026 10:33:08 +0100
-Subject: [PATCH 02/11] camera: Relax monotonic timestamp guard for still
+Subject: [PATCH 2/9] camera: Relax monotonic timestamp guard for still
  captures
 
 Oplus still-capture brackets (e.g. front portrait TurboHDR) deliver
@@ -19,7 +19,7 @@ guard for any still capture (not only ZSL still captures).
  1 file changed, 7 insertions(+), 1 deletion(-)
 
 diff --git a/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp b/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
-index 6606421343..6ed5db03c9 100644
+index 6606421..6ed5db0 100644
 --- a/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
 +++ b/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
 @@ -1153,8 +1153,14 @@ void collectAndRemovePendingOutputBuffers(bool useHalBufManager,

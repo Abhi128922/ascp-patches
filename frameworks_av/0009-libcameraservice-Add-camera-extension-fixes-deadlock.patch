@@ -1,0 +1,194 @@
+From 63581d3c98b4c94c049bd01298e151c8ed9b01bb Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Fri, 9 Oct 2026 08:30:36 +0000
+Subject: [PATCH 9/9] libcameraservice: Add camera extension fixes, deadlock
+ prevention and prerequisites
+
+---
+ .../camera/libcameraservice/CameraService.cpp | 51 +++++++++++++++++++
+ .../api2/CameraDeviceClient.cpp               | 23 ++++++---
+ .../common/CameraProviderManager.cpp          |  3 ++
+ .../device3/Camera3Device.cpp                 | 32 ++++++------
+ .../ext/CameraServiceExtFactory.cpp           |  6 ++-
+ 5 files changed, 92 insertions(+), 23 deletions(-)
+
+diff --git a/services/camera/libcameraservice/CameraService.cpp b/services/camera/libcameraservice/CameraService.cpp
+index a303f8c..a4b21eb 100644
+--- a/services/camera/libcameraservice/CameraService.cpp
++++ b/services/camera/libcameraservice/CameraService.cpp
+@@ -2156,6 +2156,57 @@ status_t CameraService::handleEvictionsLocked(const std::string& cameraId, int c
+             evicted.clear();
+         }
+ 
++        // --- OPLUS PORT: Force symmetric eviction for cameras sharing physical sensors ---
++        // Camera IDs 0 and 2 share the rear main sensor. The HAL declares
++        // 0 conflicts with 2, but NOT 2 conflicts with 0 (asymmetric).
++        // This causes a provider deadlock when camera 2 opens while camera 0's
++        // (logical-4 RealTimeMCX) session is still live (Google-Lens → back).
++        // Force the missing direction: evict the peer (0<->2) when one connects.
++        //
++        // NOTE: this MUST run AFTER the isPrivilegedClient() clear above —
++        // com.oplus.camera is in persist.vendor.camera.privapp.list, so the clear
++        // wipes the normal evicted set; if we forced the peer before the clear it
++        // would be erased and the concurrent open would deadlock the provider.
++        {
++            std::string conflictPeer;
++            if (cameraId == "2") conflictPeer = "0";
++            else if (cameraId == "0") conflictPeer = "2";
++
++            // [OplusPort][DIAG] Unconditional trace: confirm this block runs and dump the
++            // active-client set at connect time so we can see why the peer is/ isn't found.
++            {
++                std::string activeKeys;
++                for (const auto& k : mActiveClientManager.getAllKeys()) {
++                    activeKeys += k;
++                    activeKeys += " ";
++                }
++                auto peerProbe = conflictPeer.empty() ? nullptr
++                        : mActiveClientManager.get(conflictPeer);
++                ALOGE("[OplusPort][DIAG] handleEvictions cameraId=%s pkg=%s conflictPeer=%s "
++                      "peerFound=%d activeKeys=[ %s] evictedN(after privclear)=%zu",
++                      cameraId.c_str(), packageName.c_str(),
++                      conflictPeer.empty() ? "(none)" : conflictPeer.c_str(),
++                      (peerProbe != nullptr && peerProbe->getValue() != nullptr) ? 1 : 0,
++                      activeKeys.c_str(), evicted.size());
++            }
++
++            if (!conflictPeer.empty()) {
++                auto peerClient = mActiveClientManager.get(conflictPeer);
++                if (peerClient != nullptr && peerClient->getValue() != nullptr) {
++                    if (std::find(evicted.begin(), evicted.end(), peerClient) == evicted.end()) {
++                        ALOGE("[OplusPort] Force-evicting camera %s client %s (PID %" PRId32
++                              ") — asymmetric conflict with camera %s",
++                              conflictPeer.c_str(),
++                              peerClient->getValue()->getPackageName().c_str(),
++                              peerClient->getOwnerId(),
++                              cameraId.c_str());
++                        evicted.push_back(peerClient);
++                    }
++                }
++            }
++        }
++        // -----------------------------------------------------------------------
++
+         // If the incoming client was 'evicted,' higher priority clients have the camera in the
+         // background, so we cannot do evictions
+         if (std::find(evicted.begin(), evicted.end(), clientDescriptor) != evicted.end()) {
+diff --git a/services/camera/libcameraservice/api2/CameraDeviceClient.cpp b/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
+index 73d906d..b184e2c 100644
+--- a/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
++++ b/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
+@@ -2818,13 +2818,22 @@ void CameraDeviceClient::detachDevice() {
+         {
+             int64_t lastFrameNumber;
+             status_t code;
+-            if ((code = mDevice->flush(&lastFrameNumber)) != OK) {
+-                ALOGE("%s: flush failed with code 0x%x", __FUNCTION__, code);
+-            }
+-
+-            if ((code = mDevice->waitUntilDrained()) != OK) {
+-                ALOGE("%s: waitUntilDrained failed with code 0x%x", __FUNCTION__,
+-                        code);
++            std::string pkgName = getPackageName();
++            if (pkgName != "com.oplus.camera") {
++                if ((code = mDevice->clearStreamingRequest(&lastFrameNumber)) != OK) {
++                    ALOGE("%s: clearStreamingRequest failed with code 0x%x", __FUNCTION__, code);
++                }
++                if ((code = mDevice->waitUntilDrained()) != OK) {
++                    ALOGE("%s: waitUntilDrained failed with code 0x%x", __FUNCTION__, code);
++                }
++            } else {
++                if ((code = mDevice->flush(&lastFrameNumber)) != OK) {
++                    ALOGE("%s: flush failed with code 0x%x", __FUNCTION__, code);
++                }
++                if ((code = mDevice->waitUntilDrained()) != OK) {
++                    ALOGE("%s: waitUntilDrained failed with code 0x%x", __FUNCTION__,
++                            code);
++                }
+             }
+         }
+ 
+diff --git a/services/camera/libcameraservice/common/CameraProviderManager.cpp b/services/camera/libcameraservice/common/CameraProviderManager.cpp
+index 7591991..2d81169 100644
+--- a/services/camera/libcameraservice/common/CameraProviderManager.cpp
++++ b/services/camera/libcameraservice/common/CameraProviderManager.cpp
+@@ -3080,6 +3080,9 @@ void CameraProviderManager::ProviderInfo::torchModeStatusChangeInternal(
+         std::lock_guard<std::mutex> lock(mLock);
+         for (auto& deviceInfo : mDevices) {
+             if (deviceInfo->mName == cameraDeviceName) {
++                if (!deviceInfo->hasFlashUnit()) {
++                    return;
++                }
+                 ALOGI("Camera device %s torch status is now %s", cameraDeviceName.c_str(),
+                         FrameworkTorchStatusToString(newStatus));
+                 id = deviceInfo->mId;
+diff --git a/services/camera/libcameraservice/device3/Camera3Device.cpp b/services/camera/libcameraservice/device3/Camera3Device.cpp
+index c6839e0..2a88e0d 100644
+--- a/services/camera/libcameraservice/device3/Camera3Device.cpp
++++ b/services/camera/libcameraservice/device3/Camera3Device.cpp
+@@ -2589,21 +2589,23 @@ status_t Camera3Device::configureStreamsLocked(int operatingMode,
+     }
+ 
+ #ifdef CAMERA_PACKAGE_NAME
+-    sp<VendorTagDescriptor> vTags;
+-    sp<VendorTagDescriptorCache> vCache = VendorTagDescriptorCache::getGlobalVendorTagCache();
+-    if (vCache.get()) {
+-        const camera_metadata_t *metaBuffer = sessionParams.getAndLock();
+-        metadata_vendor_id_t vendorId = get_camera_metadata_vendor_id(metaBuffer);
+-        sessionParams.unlock(metaBuffer);
+-        vCache->getVendorTagDescriptor(vendorId, &vTags);
+-        uint32_t tag;
+-        if (CameraMetadata::getTagFromName(CAMERA_PACKAGE_NAME, vTags.get(), &tag)) {
+-            ALOGE("%s: Unable to get %s tag", __FUNCTION__, CAMERA_PACKAGE_NAME);
+-        } else {
+-            std::string pkgName = CameraService::getCurrPackageName();
+-            status_t res = const_cast<CameraMetadata&>(sessionParams).update(tag, String8(pkgName.c_str()));
+-            if (res) {
+-                ALOGE("%s: metadata update failed, res = %d", __FUNCTION__, res);
++    if (strlen(CAMERA_PACKAGE_NAME) > 0) {
++        sp<VendorTagDescriptor> vTags;
++        sp<VendorTagDescriptorCache> vCache = VendorTagDescriptorCache::getGlobalVendorTagCache();
++        if (vCache.get()) {
++            const camera_metadata_t *metaBuffer = sessionParams.getAndLock();
++            metadata_vendor_id_t vendorId = get_camera_metadata_vendor_id(metaBuffer);
++            sessionParams.unlock(metaBuffer);
++            vCache->getVendorTagDescriptor(vendorId, &vTags);
++            uint32_t tag;
++            if (CameraMetadata::getTagFromName(CAMERA_PACKAGE_NAME, vTags.get(), &tag)) {
++                ALOGE("%s: Unable to get %s tag", __FUNCTION__, CAMERA_PACKAGE_NAME);
++            } else {
++                std::string pkgName = CameraService::getCurrPackageName();
++                status_t res = const_cast<CameraMetadata&>(sessionParams).update(tag, String8(pkgName.c_str()));
++                if (res) {
++                    ALOGE("%s: metadata update failed, res = %d", __FUNCTION__, res);
++                }
+             }
+         }
+     }
+diff --git a/services/camera/libcameraservice/ext/CameraServiceExtFactory.cpp b/services/camera/libcameraservice/ext/CameraServiceExtFactory.cpp
+index df12292..e2d44e3 100644
+--- a/services/camera/libcameraservice/ext/CameraServiceExtFactory.cpp
++++ b/services/camera/libcameraservice/ext/CameraServiceExtFactory.cpp
+@@ -9,6 +9,10 @@ void* CameraServiceExtFactory::sExtObject = nullptr;
+ int (*CameraServiceExtFactory::sOnTransactFunc)(void*, uint32_t, const Parcel&, Parcel*, uint32_t) = nullptr;
+ 
+ void CameraServiceExtFactory::ensureLoaded() {
++    static bool sLoadAttempted = false;
++    if (sLoadAttempted) return;
++    sLoadAttempted = true;
++
+     if (sFunctionTable != nullptr) return;
+ 
+     const char* libPath = "system_ext/lib64/libcsextimpl.so";
+@@ -74,7 +78,7 @@ int CameraServiceExtFactory::onTransact(uint32_t code, const Parcel& data, Parce
+     ensureLoaded();
+     if (sExtObject == nullptr) {
+         if (sFunctionTable == nullptr) {
+-            ALOGE("CameraServiceExtFactory::onTransact: extension not loaded");
++            ALOGV("CameraServiceExtFactory::onTransact: extension not loaded");
+             return -1;
+         }
+         void* actualFunc = *(void**)sFunctionTable;
+-- 
+2.43.0
+

@@ -1,4 +1,4 @@
-From 27e2a709e9c46d5fc70f999b22a5173cfcb70d86 Mon Sep 17 00:00:00 2001
+From 229e33d9b7c9c3c0876be8446a3f9499f8723316 Mon Sep 17 00:00:00 2001
 From: elpaablo <donopwhile1@gmail.com>
 Date: Sat, 13 Jun 2026 02:14:48 +0100
 Subject: [PATCH] art: drop non-AOSP global -O3
@@ -26,10 +26,10 @@ merits above.
  1 file changed, 1 deletion(-)
 
 diff --git a/build/Android.bp b/build/Android.bp
-index 5d8974213f..f69b22e38e 100644
+index 20a851d..7feb8fc 100644
 --- a/build/Android.bp
 +++ b/build/Android.bp
-@@ -103,7 +103,6 @@ art_global_defaults {
+@@ -108,7 +108,6 @@ art_global_defaults {
          "-Wshadow",
          "-Wunused",
          "-fvisibility=protected",
@@ -37,3 +37,6 @@ index 5d8974213f..f69b22e38e 100644
  
          // Warn about thread safety violations with clang.
          "-Wthread-safety",
+-- 
+2.43.0
+

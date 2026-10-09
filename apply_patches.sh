@@ -60,6 +60,65 @@ is_patch_already_applied() {
         return 0
     fi
 
+    # Feature-specific heuristic checks
+    case "$(basename "$patch_file")" in
+        *oplus_adfr*|*ltpo_enable*)
+            if [ -f "qcom/opensource/display-drivers/oplus/oplus_adfr.c" ] && \
+               grep -q "oplus_adfr_ltpo_enabled" "qcom/opensource/display-drivers/oplus/oplus_adfr.c" 2>/dev/null; then
+                cd - > /dev/null 2>/dev/null
+                return 0
+            fi
+            ;;
+        *aston-Track-and-build-OplusParts*)
+            if [ -d "device-settings" ] || grep -q "supports_oplus_adfr" device.mk 2>/dev/null; then
+                cd - > /dev/null 2>/dev/null
+                return 0
+            fi
+            ;;
+        *aston-inherit-BCR*)
+            if grep -q "vendor/bcr/bcr.mk" device.mk 2>/dev/null; then
+                cd - > /dev/null 2>/dev/null
+                return 0
+            fi
+            ;;
+        *aston-Enable-SurfaceFlinger-Oplus-ADFR*)
+            if grep -q "arr_use_oplus_ltpo_rates" device.mk 2>/dev/null; then
+                cd - > /dev/null 2>/dev/null
+                return 0
+            fi
+            ;;
+        *sm8550-common-inherit-oplus-fwk*)
+            if grep -q "oplus-fwk.mk" common.mk 2>/dev/null; then
+                cd - > /dev/null 2>/dev/null
+                return 0
+            fi
+            ;;
+        *BoardConfigSoong-Add-flags-for-Camera-package-name*|*BoardConfigSoong-Forward-TARGET_CAMERA_PACKAGE_NAME*)
+            if grep -q "TARGET_CAMERA_PACKAGE_NAME" config/BoardConfigSoong.mk 2>/dev/null; then
+                cd - > /dev/null 2>/dev/null
+                return 0
+            fi
+            ;;
+        *check_boot_jars-Whitelist-more-OPlus*)
+            if grep -q "com\.color\.inner" scripts/check_boot_jars/package_allowed_list.txt 2>/dev/null; then
+                cd - > /dev/null 2>/dev/null
+                return 0
+            fi
+            ;;
+        *sepolicy-Label-ro.surface_flinger.panel_refresh_rate*|*0001-sepolicy.patch)
+            if grep -q "panel_refresh_rate_node" private/property_contexts 2>/dev/null; then
+                cd - > /dev/null 2>/dev/null
+                return 0
+            fi
+            ;;
+        *art-drop-non-AOSP-global-O3*|*0001-art.patch)
+            if [ -f "build/Android.bp" ] && ! grep -q '"-O3"' build/Android.bp 2>/dev/null; then
+                cd - > /dev/null 2>/dev/null
+                return 0
+            fi
+            ;;
+    esac
+
     cd - > /dev/null 2>/dev/null
     return 1
 }
@@ -73,7 +132,7 @@ apply_single_patch() {
 
     if [ ! -d "$repo_path" ]; then
         log "  ${YELLOW}⏭  [Directory not found: $repo_path] - Skipping${NC}"
-        return 3
+        return 0
     fi
 
     cd "$repo_path" 2>/dev/null || return 2
@@ -125,29 +184,38 @@ apply_single_patch() {
     return 2
 }
 
+# Determine vendor tree path (vendor/custom for ASCP, vendor/yaap for YAAP)
+VENDOR_REL="vendor/custom"
+VENDOR_PATCH_DIR="vendor_custom"
+if [ ! -d "$ROM_ROOT/vendor/custom" ] && [ -d "$ROM_ROOT/vendor/yaap" ]; then
+    VENDOR_REL="vendor/yaap"
+    VENDOR_PATCH_DIR="vendor_yaap"
+fi
+
 # ── PATCH QUEUE ──────────────────────────────────────────────────────
 # Format: repo_rel_path|patch_dir|patch_file|category|description
 declare -a PATCH_QUEUE=(
-    # Category 1: OOS Camera Port Core
+    # Category 1: Performance & Compiler Flags
+    "art|art|0001-art.patch|ART PERF|art: drop non-AOSP global -O3"
+
+    # Category 2: OOS Camera Port Core
     "frameworks/av|frameworks_av|0001-av-add-OPlus-CameraService-extension-support.patch|OOS CAM|av: add OPlus CameraService extension support"
     "frameworks/av|frameworks_av|0002-camera-Relax-monotonic-timestamp-guard-for-still-cap.patch|OOS CAM|camera: Relax monotonic timestamp guard for still captures"
-    "frameworks/av|frameworks_av|0003-camera-fix-Google-Lens-back-provider-deadlock-on-sha.patch|OOS CAM|camera: fix Google-Lens->back provider deadlock on shared rear sensor"
-    "frameworks/av|frameworks_av|0004-Add-Oplus-user-data-member-to-StagefrightRecorder.patch|OOS CAM|Add Oplus user data member to StagefrightRecorder"
-    "frameworks/av|frameworks_av|0005-Implement-Oplus-user-data-handling-for-HDR.patch|OOS CAM|Implement Oplus user data handling for HDR"
-    "frameworks/av|frameworks_av|0006-Add-kKeyOplusUserData-to-MetaDataBase.h.patch|OOS CAM|Add kKeyOplusUserData to MetaDataBase.h"
-    "frameworks/av|frameworks_av|0007-HDR-FIX.-Enhance-MPEG4Writer-to-handle-Oplus-user-da.patch|OOS CAM|HDR FIX: MPEG4Writer Oplus user data handling ('oplu' atom)"
-    "frameworks/av|frameworks_av|0008-libcameraservice-bypass-timestamp-monotonic-guard-fo.patch|OOS CAM|libcameraservice: bypass timestamp monotonic guard for custom intent"
-    "frameworks/av|frameworks_av|0009-libcameraservice-gate-timestamp-guard-bypass-behind-.patch|OOS CAM|libcameraservice: gate timestamp guard bypass behind ro.camera.relax_timestamp_guard"
-    "frameworks/av|frameworks_av|0010-libcameraservice-Add-camera-extension-infrastructure.patch|OOS CAM|libcameraservice: Add camera extension infrastructure and OEM prerequisites"
-    "frameworks/av|frameworks_av|0011-libcameraservice-Resolve-CAMERA_PACKAGE_NAME-conflic.patch|OOS CAM|libcameraservice: Resolve CAMERA_PACKAGE_NAME conflict via Soong config"
+    "frameworks/av|frameworks_av|0003-Add-Oplus-user-data-member-to-StagefrightRecorder.patch|OOS CAM|Add Oplus user data member to StagefrightRecorder"
+    "frameworks/av|frameworks_av|0004-Implement-Oplus-user-data-handling-for-HDR.patch|OOS CAM|Implement Oplus user data handling for HDR"
+    "frameworks/av|frameworks_av|0005-Add-kKeyOplusUserData-to-MetaDataBase.h.patch|OOS CAM|Add kKeyOplusUserData to MetaDataBase.h"
+    "frameworks/av|frameworks_av|0006-HDR-FIX.-Enhance-MPEG4Writer-to-handle-Oplus-user-da.patch|OOS CAM|HDR FIX: MPEG4Writer Oplus user data handling ('oplu' atom)"
+    "frameworks/av|frameworks_av|0007-libcameraservice-bypass-timestamp-monotonic-guard-fo.patch|OOS CAM|libcameraservice: bypass timestamp monotonic guard for custom intent"
+    "frameworks/av|frameworks_av|0008-libcameraservice-gate-timestamp-guard-bypass-behind-.patch|OOS CAM|libcameraservice: gate timestamp guard bypass behind ro.camera.relax_timestamp_guard"
+    "frameworks/av|frameworks_av|0009-libcameraservice-Add-camera-extension-fixes-deadlock.patch|OOS CAM|libcameraservice: camera extension fixes, deadlock prevention & prerequisites"
     "frameworks/base|frameworks_base|0001-wm-ActivityStarter-Redirect-proprietary-OPlus-file-m.patch|OOS CAM|wm: ActivityStarter: Redirect proprietary OPlus file manager to DocumentsUI"
     "frameworks/base|frameworks_base|0002-base-ImageReader.getOplusHardwareBuffer-OnePlus-came.patch|OOS CAM|base: ImageReader.getOplusHardwareBuffer() — no-cleaner buffer"
     "frameworks/native|frameworks_native|0001-native-bump-BINDER_VM_SIZE-1MB-4MB-for-OPlus-camera-.patch|OOS CAM|native: bump BINDER_VM_SIZE 1MB->4MB for RAW/Master capture"
     "build/soong|build_soong|0001-check_boot_jars-Whitelist-more-OPlus-framework-packa.patch|OOS CAM|check_boot_jars: Whitelist more OPlus framework packages"
-    "vendor/yaap|vendor_yaap|0001-BoardConfigSoong-Forward-TARGET_CAMERA_PACKAGE_NAME-.patch|OOS CAM|BoardConfigSoong: Forward TARGET_CAMERA_PACKAGE_NAME to camera:package_name"
+    "$VENDOR_REL|$VENDOR_PATCH_DIR|0001-BoardConfigSoong-Add-flags-for-Camera-package-name-a.patch|SOONG CONFIG|BoardConfigSoong: Add flags for Camera package name and SurfaceFlinger Oplus ADFR/LTPO"
     "device/qcom/sepolicy_vndr/sm8550|device_qcom_sepolicy_vndr|0001-sm8550-Add-opluscamera_app-to-DSP-neverallow-excepti.patch|OOS CAM|sm8550: Add opluscamera_app to DSP neverallow exceptions"
 
-    # Category 2: Auto-Brightness & HDR
+    # Category 3: Auto-Brightness & HDR
     "frameworks/native|frameworks_native|0002-surfaceflinger-Flag-fullscreen-video-layers-in-HDR-l.patch|HDR|surfaceflinger: Flag fullscreen video layers in HDR layer info"
     "frameworks/native|frameworks_native|0003-sensorservice-Load-the-OPLUS-fusion-light-engine-con.patch|AUTO BRIGHTNESS|sensorservice: Load the OPLUS fusion light engine (content-immune ALS)"
     "frameworks/native|frameworks_native|0006-sensorservice-OplusFusionExt-check-persist.ascp.fusi.patch|AUTO BRIGHTNESS|sensorservice: OplusFusionExt: check persist.ascp.fusion_light"
@@ -155,19 +223,16 @@ declare -a PATCH_QUEUE=(
     "frameworks/base|frameworks_base|0004-display-Drop-fusion-ALS-hard-zero-samples-in-auto-br.patch|AUTO BRIGHTNESS|display: Drop fusion ALS hard-zero samples in auto-brightness"
     "frameworks/base|frameworks_base|0005-AutomaticBrightnessController-import-android.os.Syst.patch|AUTO BRIGHTNESS|AutomaticBrightnessController: import android.os.SystemProperties"
 
-    # Category 3: LTPO & Device Features (Applied if repos exist)
+    # Category 4: LTPO, UDFPS, SEPolicy & Device Features
+    "system/sepolicy|system_sepolicy|0001-sepolicy.patch|SEPOLICY|sepolicy: Label ro.surface_flinger.panel_refresh_rate_node as surfaceflinger_prop"
     "kernel/oneplus/sm8550-modules|kernel_modules|0001-display-driver-oplus_adfr-Allow-force-enabling-of-AD.patch|LTPO|display-driver: oplus_adfr: Allow force enabling of ADFR (/sys/kernel/oplus_display/ltpo_enable)"
     "frameworks/native|frameworks_native|0004-surfaceflinger-Use-Refresh-rate-values-from-Oplus-AD.patch|LTPO|surfaceflinger: Use Refresh rate values from Oplus ADFR"
     "frameworks/native|frameworks_native|0005-surfaceflinger-UdfpsExtension-Correct-UDFPS_TOUCHED_.patch|UDFPS|surfaceflinger: UdfpsExtension: Correct UDFPS_TOUCHED_LAYER_NAME to match SurfaceView layer"
     "hardware/qcom-caf/bootctrl|hardware_qcom-caf_bootctrl|0001-bootctrl-Remove-duplicate-boot-service-binary-declar.patch|BUILD FIX|bootctrl: Remove duplicate boot-service binary declarations in favor of hardware/oplus"
-    "vendor/yaap|vendor_yaap|0003-BoardConfigSoong-Add-flags-for-SurfaceFlinger-Oplus-.patch|LTPO|BoardConfigSoong: Add flags for SurfaceFlinger Oplus ADFR and LTPO rates"
     "device/oneplus/aston|device_oneplus_aston|0001-aston-Track-and-build-OplusParts.patch|LTPO & PARTS|aston: Track and build OplusParts, enable ADFR support"
     "device/oneplus/aston|device_oneplus_aston|0002-aston-inherit-BCR.patch|DEVICE EXTRAS|aston: inherit BCR (Basic Call Recorder)"
     "device/oneplus/aston|device_oneplus_aston|0003-aston-Enable-SurfaceFlinger-Oplus-ADFR-and-LTPO-rate.patch|LTPO|aston: Enable SurfaceFlinger Oplus ADFR and LTPO rates"
     "device/oneplus/sm8550-common|device_oneplus_sm8550_common|0001-sm8550-common-inherit-oplus-fwk.patch|DEVICE EXTRAS|sm8550-common: inherit oplus-fwk"
-    "vendor/yaap|vendor_yaap|0002-yaap-fix-dtb-naming-hash-and-cleanup-signing-keys-BU.patch|BUILD FIX|yaap: fix dtb naming hash and cleanup signing keys BUILD"
-    "vendor/yaap|vendor_yaap|0004-vendor-generate_json_build_info-Adapt-for-custom-ind.patch|OTA JSON|vendor: generate_json_build_info: Adapt for custom index and enable for homemade builds"
-    "packages/apps/OpenDelta|packages_apps_OpenDelta|0001-OpenDelta-Adapt-for-unofficial-OTA-updates-and-custo.patch|OTA|OpenDelta: Adapt for unofficial OTA updates and custom file index"
 )
 
 # ── MAIN EXECUTION ───────────────────────────────────────────────────

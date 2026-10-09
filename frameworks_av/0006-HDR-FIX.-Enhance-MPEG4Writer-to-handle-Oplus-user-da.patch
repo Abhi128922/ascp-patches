@@ -1,7 +1,7 @@
-From 48a4528164fdbad44b93d8e1b4cadd83d6f2a7d8 Mon Sep 17 00:00:00 2001
+From 78e2a2a5f0cd4b22a0b936ad1cb6d6125abab7f1 Mon Sep 17 00:00:00 2001
 From: Kill3rEz <98993017+Kill3rEz@users.noreply.github.com>
 Date: Wed, 17 Jun 2026 16:18:50 +0200
-Subject: [PATCH 07/11]  HDR FIX. Enhance MPEG4Writer to handle Oplus user data
+Subject: [PATCH 6/9] HDR FIX. Enhance MPEG4Writer to handle Oplus user data
  with custom 'oplu' metadata atom in MP4.
 
 Ensures the 'udta' box is generated even without GPS data and writes a custom 'oplu' atom to safely store proprietary Oplus camera parameters (e.g., HDR and lens info) directly into the video container.
@@ -10,7 +10,7 @@ Ensures the 'udta' box is generated even without GPS data and writes a custom 'o
  1 file changed, 19 insertions(+), 2 deletions(-)
 
 diff --git a/media/libstagefright/MPEG4Writer.cpp b/media/libstagefright/MPEG4Writer.cpp
-index a8ac7eafcb..9734b7193f 100644
+index a8ac7ea..9734b71 100644
 --- a/media/libstagefright/MPEG4Writer.cpp
 +++ b/media/libstagefright/MPEG4Writer.cpp
 @@ -1552,7 +1552,12 @@ void MPEG4Writer::writeMvhdBox(int64_t durationUs) {

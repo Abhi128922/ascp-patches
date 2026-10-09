@@ -1,7 +1,7 @@
-From a72b8d8fa50181f32a19a039dce6b732a29d2212 Mon Sep 17 00:00:00 2001
+From 8edd2e83015e7feb65232f6f05df1504b1d707a9 Mon Sep 17 00:00:00 2001
 From: elpaablo <donopwhile1@gmail.com>
 Date: Thu, 9 Jul 2026 22:46:54 +0100
-Subject: [PATCH 09/11] libcameraservice: gate timestamp guard bypass behind
+Subject: [PATCH 8/9] libcameraservice: gate timestamp guard bypass behind
  ro.camera.relax_timestamp_guard
 
 ---
@@ -9,7 +9,7 @@ Subject: [PATCH 09/11] libcameraservice: gate timestamp guard bypass behind
  1 file changed, 14 insertions(+), 7 deletions(-)
 
 diff --git a/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp b/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
-index 2b8cadc004..b167eddd8d 100644
+index 2b8cadc..b167edd 100644
 --- a/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
 +++ b/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
 @@ -33,6 +33,8 @@

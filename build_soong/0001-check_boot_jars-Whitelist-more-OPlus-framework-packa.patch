@@ -1,26 +1,27 @@
-From 2fa5a761383645388abea3e5d091e4bb0cedb685 Mon Sep 17 00:00:00 2001
+From 565fdac5193b2e395bbd11bf9d014fc0b27ef78c Mon Sep 17 00:00:00 2001
 From: gaurav-paul9 <paulgaurav9@gmail.com>
-Date: Fri, 2 Oct 2026 06:35:20 +0000
+Date: Fri, 9 Oct 2026 08:30:52 +0000
 Subject: [PATCH] check_boot_jars: Whitelist more OPlus framework packages
 
 ---
- scripts/check_boot_jars/package_allowed_list.txt | 3 +++
- 1 file changed, 3 insertions(+)
+ scripts/check_boot_jars/package_allowed_list.txt | 4 ++++
+ 1 file changed, 4 insertions(+)
 
 diff --git a/scripts/check_boot_jars/package_allowed_list.txt b/scripts/check_boot_jars/package_allowed_list.txt
-index 25aaa17..2b56696 100644
+index 3e67ca2..afd3aad 100644
 --- a/scripts/check_boot_jars/package_allowed_list.txt
 +++ b/scripts/check_boot_jars/package_allowed_list.txt
-@@ -217,6 +217,9 @@ vendor\.google_clockwork\.displayoffload3\..*
+@@ -226,6 +226,10 @@ com\.nvidia\..*
+ 
+ # OPLUS adds
  com\.oplus\..*
- net\.oneplus\..*
- oplus\..*
++net\.oneplus\..*
++oplus\..*
 +com\.color\.inner\..*
 +android\.os\.oplusdevicepolicy\..*
-+
  
- ###################################################
- # IFAA Manager used for Alipay and/or WeChat payment
+ # QC adds
+ com.qualcomm.qti
 -- 
 2.43.0
 

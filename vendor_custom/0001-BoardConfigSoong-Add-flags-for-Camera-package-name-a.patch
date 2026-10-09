@@ -1,0 +1,37 @@
+From 63f34fb3e4668b00267e63faaf3fe7df6a2492fe Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Fri, 9 Oct 2026 08:31:58 +0000
+Subject: [PATCH] BoardConfigSoong: Add flags for Camera package name and
+ SurfaceFlinger Oplus ADFR/LTPO
+
+---
+ config/BoardConfigSoong.mk | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/config/BoardConfigSoong.mk b/config/BoardConfigSoong.mk
+index 459e5c9..9b525d0 100644
+--- a/config/BoardConfigSoong.mk
++++ b/config/BoardConfigSoong.mk
+@@ -42,4 +42,18 @@ endif
+ # Vendor init
+ ifneq ($(TARGET_INIT_VENDOR_LIB),)
+     $(error TARGET_INIT_VENDOR_LIB is deprecated, please migrate to soong_config_set,libinit,vendor_init_lib)
++endif
++
++# Camera package name
++ifneq ($(TARGET_CAMERA_PACKAGE_NAME),)
++    $(call soong_config_set,camera,package_name,$(TARGET_CAMERA_PACKAGE_NAME))
++endif
++
++# SurfaceFlinger
++ifneq ($(TARGET_SURFACEFLINGER_SUPPORTS_OPLUS_ADFR),)
++    $(call soong_config_set,surfaceflinger,supports_oplus_adfr,$(TARGET_SURFACEFLINGER_SUPPORTS_OPLUS_ADFR))
++endif
++
++ifneq ($(TARGET_SURFACEFLINGER_ARR_USE_OPLUS_LTPO_RATES),)
++    $(call soong_config_set,surfaceflinger,arr_use_oplus_ltpo_rates,$(TARGET_SURFACEFLINGER_ARR_USE_OPLUS_LTPO_RATES))
+ endif
+\ No newline at end of file
+-- 
+2.43.0
+

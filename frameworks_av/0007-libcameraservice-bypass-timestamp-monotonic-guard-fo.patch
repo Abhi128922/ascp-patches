@@ -1,7 +1,7 @@
-From caab7f5c33cbbdb5185a39c35ad23a172a3417ba Mon Sep 17 00:00:00 2001
+From ddea29c63cd6dcd4ea0c5d2c8b078ad8ecd49033 Mon Sep 17 00:00:00 2001
 From: elpaablo <donopwhile1@gmail.com>
 Date: Thu, 9 Jul 2026 14:59:47 +0100
-Subject: [PATCH 08/11] libcameraservice: bypass timestamp monotonic guard for
+Subject: [PATCH 7/9] libcameraservice: bypass timestamp monotonic guard for
  custom intent
 
 This fixes the frame dropping issue on OPlus devices using custom intents
@@ -11,7 +11,7 @@ like ALGO_YUVSR (Super Resolution Zoom), which deliver out-of-order burst frames
  1 file changed, 1 insertion(+), 2 deletions(-)
 
 diff --git a/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp b/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
-index 6ed5db03c9..2b8cadc004 100644
+index 6ed5db0..2b8cadc 100644
 --- a/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
 +++ b/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
 @@ -1159,8 +1159,7 @@ void collectAndRemovePendingOutputBuffers(bool useHalBufManager,

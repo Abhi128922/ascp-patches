@@ -1,6 +1,6 @@
-From 8971f5eb8eb6819b7cdc6b99e9c9c0830135c6e6 Mon Sep 17 00:00:00 2001
-From: elpaablo <donopwhile1@gmail.com>
-Date: Tue, 7 Jul 2026 19:28:33 +0100
+From 77fabe14a039ca27bb006bb2390a575d0f35b852 Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Fri, 9 Oct 2026 08:31:10 +0000
 Subject: [PATCH] sepolicy: Label ro.surface_flinger.panel_refresh_rate_node as
  surfaceflinger_prop
 
@@ -9,11 +9,17 @@ Subject: [PATCH] sepolicy: Label ro.surface_flinger.panel_refresh_rate_node as
  1 file changed, 1 insertion(+)
 
 diff --git a/private/property_contexts b/private/property_contexts
-index 153197660c..8611cb3b30 100644
+index 38f3fea..de331d7 100644
 --- a/private/property_contexts
 +++ b/private/property_contexts
-@@ -1903,3 +1903,4 @@ ro.arm64.memtag.bootctl_supported u:object_r:arm64_memtag_bootctl_prop:s0 exact
+@@ -1575,6 +1575,7 @@ ro.surface_flinger.game_default_frame_rate_override       u:object_r:surfaceflin
+ ro.surface_flinger.resync_on_tx_timeout                   u:object_r:surfaceflinger_prop:s0 exact int
+ ro.surface_flinger.resync_on_choreographer_timeout        u:object_r:surfaceflinger_prop:s0 exact int
+ ro.surface_flinger.force_hole_punch                       u:object_r:surfaceflinger_prop:s0 exact bool
++ro.surface_flinger.panel_refresh_rate_node               u:object_r:surfaceflinger_prop:s0 exact string
  
- # Wallet properties
- ro.gms.wallet.se_capability u:object_r:wallet_prop:s0 exact int
-+ro.surface_flinger.panel_refresh_rate_node      u:object_r:surfaceflinger_prop:s0 exact string
+ ro.sf.disable_triple_buffer u:object_r:surfaceflinger_prop:s0 exact bool
+ ro.sf.lcd_density           u:object_r:surfaceflinger_prop:s0 exact int
+-- 
+2.43.0
+
