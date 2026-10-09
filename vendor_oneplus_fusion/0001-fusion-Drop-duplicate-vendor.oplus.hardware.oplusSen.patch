@@ -1,0 +1,33 @@
+From 47fe6ca844f74f3ca9f01fbf5e8b9b058689cac9 Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Fri, 9 Oct 2026 10:01:00 +0000
+Subject: [PATCH] fusion: Drop duplicate
+ vendor.oplus.hardware.oplusSensor-V1-ndk prebuilt in favor of hardware/oplus
+
+---
+ Android.bp | 9 ---------
+ 1 file changed, 9 deletions(-)
+
+diff --git a/Android.bp b/Android.bp
+index 06388ee..7ec974b 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -50,15 +50,6 @@ cc_prebuilt_library_shared {
+     target: { android_arm64: { srcs: ["proprietary/system_ext/lib64/vendor.oplus.hardware.oplusSensor@1.0.so"] } },
+ }
+ 
+-cc_prebuilt_library_shared {
+-    name: "vendor.oplus.hardware.oplusSensor-V1-ndk",
+-    owner: "oneplus",
+-    system_ext_specific: true,
+-    compile_multilib: "64",
+-    check_elf_files: false,
+-    strip: { none: true },
+-    target: { android_arm64: { srcs: ["proprietary/system_ext/lib64/vendor.oplus.hardware.oplusSensor-V1-ndk.so"] } },
+-}
+ 
+ // ---- system/lib64 ----
+ 
+-- 
+2.43.0
+

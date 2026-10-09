@@ -117,6 +117,12 @@ is_patch_already_applied() {
                 return 0
             fi
             ;;
+        *fusion-Drop-duplicate-vendor.oplus.hardware.oplusSen*)
+            if [ -f "Android.bp" ] && ! grep -q "vendor.oplus.hardware.oplusSensor-V1-ndk" Android.bp 2>/dev/null; then
+                cd - > /dev/null 2>/dev/null
+                return 0
+            fi
+            ;;
     esac
 
     cd - > /dev/null 2>/dev/null
@@ -229,6 +235,7 @@ declare -a PATCH_QUEUE=(
     "frameworks/native|frameworks_native|0004-surfaceflinger-Use-Refresh-rate-values-from-Oplus-AD.patch|LTPO|surfaceflinger: Use Refresh rate values from Oplus ADFR"
     "frameworks/native|frameworks_native|0005-surfaceflinger-UdfpsExtension-Correct-UDFPS_TOUCHED_.patch|UDFPS|surfaceflinger: UdfpsExtension: Correct UDFPS_TOUCHED_LAYER_NAME to match SurfaceView layer"
     "hardware/qcom-caf/bootctrl|hardware_qcom-caf_bootctrl|0001-bootctrl-Remove-duplicate-boot-service-binary-declar.patch|BUILD FIX|bootctrl: Remove duplicate boot-service binary declarations in favor of hardware/oplus"
+    "vendor/oneplus/fusion|vendor_oneplus_fusion|0001-fusion-Drop-duplicate-vendor.oplus.hardware.oplusSen.patch|BUILD FIX|fusion: Drop duplicate vendor.oplus.hardware.oplusSensor-V1-ndk prebuilt in favor of hardware/oplus"
     "device/oneplus/aston|device_oneplus_aston|0001-aston-Track-and-build-OplusParts.patch|LTPO & PARTS|aston: Track and build OplusParts, enable ADFR support"
     "device/oneplus/aston|device_oneplus_aston|0002-aston-inherit-BCR.patch|DEVICE EXTRAS|aston: inherit BCR (Basic Call Recorder)"
     "device/oneplus/aston|device_oneplus_aston|0003-aston-Enable-SurfaceFlinger-Oplus-ADFR-and-LTPO-rate.patch|LTPO|aston: Enable SurfaceFlinger Oplus ADFR and LTPO rates"
