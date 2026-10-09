@@ -15,11 +15,12 @@
   <project path="kernel/oneplus/sm8550-devicetrees" name="Abhi128922/android_kernel_oneplus_sm8550-devicetrees" remote="github" revision="ascp-17" />
 
   <!-- Proprietary Vendor Blobs & Oplus Packages -->
-  <project path="vendor/oneplus/aston" name="alphadroid-project/vendor_oneplus_aston" remote="gitlab" revision="alpha-16.2" />
+  <project path="vendor/oneplus/aston" name="Abhi128922/android_vendor_oneplus_aston" remote="github" revision="ascp-17" />
   <project path="vendor/oneplus/sm8550-common" name="Abhi128922/android_vendor_oneplus_sm8550-common" remote="github" revision="ascp-17" />
   <project path="vendor/oplus/camera" name="gauravpaul9/vendor_oplus_camera" remote="gitlab" revision="alpha-16.2" clone-depth="1" />
   <project path="vendor/oneplus/fusion" name="alphadroid-project/vendor_oneplus_fusion" remote="gitlab" revision="alpha-16.2" clone-depth="1" />
   <project path="vendor/oneplus/dolby" name="alphadroid-project/vendor_oneplus_dolby" remote="gitlab" revision="alpha-16.2" clone-depth="1" />
   <project path="vendor/oneplus/ir" name="crdroidandroid/proprietary_vendor_oneplus_ir" remote="gitlab" revision="17.0" clone-depth="1" />
+  <project path="vendor/bcr" name="Lunaris-AOSP/vendor_bcr" remote="github" revision="16.2" clone-depth="1" />
 
 </manifest>
