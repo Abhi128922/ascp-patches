@@ -7,7 +7,7 @@
   <!-- Hardware & Interfaces -->
   <project path="hardware/oplus" name="Abhi128922/hardware_oplus" remote="github" revision="ascp-17" />
   <project path="hardware/pixelworks/interfaces" name="LineageOS/android_hardware_pixelworks_interfaces" remote="github" revision="lineage-24.0" />
-  <project path="hardware/dolby" name="Abhi128922/hardware_dolby" remote="github" revision="ascp-17" />
+  <project path="packages/apps/LunarisDolby" name="AlphaDroid-devices/packages_apps_LunarisDolby" remote="github" revision="alpha-16.2" clone-depth="1" />
 
   <!-- Kernel, Modules, and Devicetrees -->
   <project path="kernel/oneplus/sm8550" name="Abhi128922/android_kernel_oneplus_sm8550" remote="github" revision="ascp-17" />
