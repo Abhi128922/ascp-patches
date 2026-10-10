@@ -62,37 +62,6 @@ is_patch_already_applied() {
 
     # Feature-specific heuristic checks
     case "$(basename "$patch_file")" in
-        *oplus_adfr*|*ltpo_enable*)
-            if [ -f "qcom/opensource/display-drivers/oplus/oplus_adfr.c" ] && \
-               grep -q "oplus_adfr_ltpo_enabled" "qcom/opensource/display-drivers/oplus/oplus_adfr.c" 2>/dev/null; then
-                cd - > /dev/null 2>/dev/null
-                return 0
-            fi
-            ;;
-        *aston-Track-and-build-OplusParts*)
-            if [ -d "device-settings" ] || grep -q "supports_oplus_adfr" device.mk 2>/dev/null; then
-                cd - > /dev/null 2>/dev/null
-                return 0
-            fi
-            ;;
-        *aston-inherit-BCR*)
-            if grep -q "vendor/bcr/bcr.mk" device.mk 2>/dev/null; then
-                cd - > /dev/null 2>/dev/null
-                return 0
-            fi
-            ;;
-        *aston-Enable-SurfaceFlinger-Oplus-ADFR*)
-            if grep -q "arr_use_oplus_ltpo_rates" device.mk 2>/dev/null; then
-                cd - > /dev/null 2>/dev/null
-                return 0
-            fi
-            ;;
-        *sm8550-common-inherit-oplus-fwk*)
-            if grep -q "oplus-fwk.mk" common.mk 2>/dev/null; then
-                cd - > /dev/null 2>/dev/null
-                return 0
-            fi
-            ;;
         *BoardConfigSoong-Add-flags-for-Camera-package-name*|*BoardConfigSoong-Forward-TARGET_CAMERA_PACKAGE_NAME*)
             if grep -q "TARGET_CAMERA_PACKAGE_NAME" config/BoardConfigSoong.mk 2>/dev/null; then
                 cd - > /dev/null 2>/dev/null
@@ -231,14 +200,9 @@ declare -a PATCH_QUEUE=(
 
     # Category 4: LTPO, UDFPS, SEPolicy & Device Features
     "system/sepolicy|system_sepolicy|0001-sepolicy.patch|SEPOLICY|sepolicy: Label ro.surface_flinger.panel_refresh_rate_node as surfaceflinger_prop"
-    "kernel/oneplus/sm8550-modules|kernel_modules|0001-display-driver-oplus_adfr-Allow-force-enabling-of-AD.patch|LTPO|display-driver: oplus_adfr: Allow force enabling of ADFR (/sys/kernel/oplus_display/ltpo_enable)"
     "frameworks/native|frameworks_native|0004-surfaceflinger-Use-Refresh-rate-values-from-Oplus-AD.patch|LTPO|surfaceflinger: Use Refresh rate values from Oplus ADFR"
     "frameworks/native|frameworks_native|0005-surfaceflinger-UdfpsExtension-Correct-UDFPS_TOUCHED_.patch|UDFPS|surfaceflinger: UdfpsExtension: Correct UDFPS_TOUCHED_LAYER_NAME to match SurfaceView layer"
     "vendor/oneplus/fusion|vendor_oneplus_fusion|0001-fusion-Drop-duplicate-vendor.oplus.hardware.oplusSen.patch|BUILD FIX|fusion: Drop duplicate vendor.oplus.hardware.oplusSensor-V1-ndk prebuilt in favor of hardware/oplus"
-    "device/oneplus/aston|device_oneplus_aston|0001-aston-Track-and-build-OplusParts.patch|LTPO & PARTS|aston: Track and build OplusParts, enable ADFR support"
-    "device/oneplus/aston|device_oneplus_aston|0002-aston-inherit-BCR.patch|DEVICE EXTRAS|aston: inherit BCR (Basic Call Recorder)"
-    "device/oneplus/aston|device_oneplus_aston|0003-aston-Enable-SurfaceFlinger-Oplus-ADFR-and-LTPO-rate.patch|LTPO|aston: Enable SurfaceFlinger Oplus ADFR and LTPO rates"
-    "device/oneplus/sm8550-common|device_oneplus_sm8550_common|0001-sm8550-common-inherit-oplus-fwk.patch|DEVICE EXTRAS|sm8550-common: inherit oplus-fwk"
 )
 
 # ── MAIN EXECUTION ───────────────────────────────────────────────────
