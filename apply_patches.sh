@@ -137,6 +137,13 @@ is_patch_already_applied() {
                 return 0
             fi
             ;;
+        *Fix-NullPointerException-in-HdmiVideoExtconUE*)
+            if [ -f "services/core/java/com/android/server/policy/PhoneWindowManager.java" ] && \
+               grep -q "if (state == null)" "services/core/java/com/android/server/policy/PhoneWindowManager.java" 2>/dev/null; then
+                cd - > /dev/null 2>/dev/null
+                return 0
+            fi
+            ;;
     esac
 
     cd - > /dev/null 2>/dev/null
@@ -258,6 +265,7 @@ declare -a PATCH_QUEUE=(
     "frameworks/native|frameworks_native|0007-inputflinger-allow-disabling-input-devices-via-idc.patch|LINDROID|inputflinger: allow disabling input devices via idc"
     "kernel/oneplus/sm8550|kernel|0001-kernel-lindroid-support.patch|LINDROID|kernel: Add Lindroid and LXC container support"
     "system/sepolicy|system_sepolicy|0002-sepolicy-Add-Lindroid-perspectived-support-and-init_.patch|LINDROID|sepolicy: Add Lindroid perspectived support and init_dir_mutation_exempt"
+    "frameworks/base|frameworks_base|0006-policy-Fix-NullPointerException-in-HdmiVideoExtconUE.patch|LINDROID|policy: Fix NullPointerException in HdmiVideoExtconUEventObserver"
 )
 
 # ── MAIN EXECUTION ───────────────────────────────────────────────────

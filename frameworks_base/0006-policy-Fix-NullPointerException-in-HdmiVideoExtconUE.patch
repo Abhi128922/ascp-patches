@@ -1,0 +1,48 @@
+From d7b4407bcd20f48ebb7d0d689604d93cc06cd27e Mon Sep 17 00:00:00 2001
+From: gaurav-paul9 <paulgaurav9@gmail.com>
+Date: Sat, 10 Oct 2026 17:10:05 +0000
+Subject: [PATCH] policy: Fix NullPointerException in
+ HdmiVideoExtconUEventObserver
+
+When receiving an extcon uevent without a STATE parameter (e.g. during
+container / external display init), event.get("STATE") returns null.
+Calling state.contains() throws a NullPointerException in UEventObserver,
+causing system_server to crash and triggering a soft reboot into bootanimation.
+
+Also guard WiredAccessoryManager against null status.
+---
+ .../core/java/com/android/server/WiredAccessoryManager.java    | 3 +++
+ .../java/com/android/server/policy/PhoneWindowManager.java     | 3 +++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/services/core/java/com/android/server/WiredAccessoryManager.java b/services/core/java/com/android/server/WiredAccessoryManager.java
+index 6a808b813..00c8b018f 100644
+--- a/services/core/java/com/android/server/WiredAccessoryManager.java
++++ b/services/core/java/com/android/server/WiredAccessoryManager.java
+@@ -860,6 +860,9 @@ final class WiredAccessoryManager implements WiredAccessoryCallbacks {
+         public Pair<Integer, Integer> parseState(ExtconInfo extconInfo, String status) {
+             if (LOG) Slog.v(TAG, "status  " + status);
+             int[] maskAndState = {0, 0};
++            if (status == null) {
++                return Pair.create(maskAndState[0], maskAndState[1]);
++            }
+             // extcon event state changes from kernel4.9
+             // new state will be like STATE=MICROPHONE=1\nHEADPHONE=0
+             if (extconInfo.hasCableType(ExtconInfo.EXTCON_HEADPHONE)) {
+diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+index 09154378e..a3f8ea054 100644
+--- a/services/core/java/com/android/server/policy/PhoneWindowManager.java
++++ b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+@@ -7264,6 +7264,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+             // extcon event state changes from kernel4.9
+             // new state will be like STATE=HDMI=1
+             // or like STATE=DP=1 for newer kernel
++            if (state == null) {
++                return false;
++            }
+             return state.contains(HDMI_EXIST) || state.contains(DP_EXIST);
+         }
+     }
+-- 
+2.43.0
+
