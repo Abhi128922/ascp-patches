@@ -1,63 +1,37 @@
-From 34dec9fcca3481ea1db26a8cedc890e0a3299d7f Mon Sep 17 00:00:00 2001
+From 7a78dff48dae29cfcf393ce51aed7cfaa98f3c13 Mon Sep 17 00:00:00 2001
 From: gaurav-paul9 <paulgaurav9@gmail.com>
-Date: Fri, 9 Oct 2026 17:08:18 +0000
-Subject: [PATCH] sepolicy: Add Lindroid perspectived support and
- init_dir_mutation_exempt
+Date: Sat, 10 Oct 2026 15:00:15 +0000
+Subject: [PATCH] sepolicy: Allow perspectived as a permissive domain across
+ all binary targets
 
 ---
- Android.bp        | 2 ++
- private/domain.te | 3 ++-
- public/attributes | 3 +++
- 3 files changed, 7 insertions(+), 1 deletion(-)
+ Android.bp | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
 
 diff --git a/Android.bp b/Android.bp
-index 51609cd..1e48460 100644
+index 1e48460..9acd83c 100644
 --- a/Android.bp
 +++ b/Android.bp
-@@ -720,6 +720,7 @@ precompiled_se_policy_binary {
-     ],
+@@ -682,6 +682,7 @@ se_policy_binary {
+     installable: false, // used only for Treble labeling tests
      permissive_domains_on_user_builds: [
          "backuptool",
 +        "perspectived",
          "su",
      ],
  }
-@@ -756,6 +757,7 @@ se_policy_binary {
-     recovery: true,
-     permissive_domains_on_user_builds: [
-         "backuptool",
+@@ -815,7 +816,10 @@ se_policy_binary {
+     dist: {
+         targets: ["sepolicy_finalize"],
+     },
+-    permissive_domains_on_user_builds: ["su"],
++    permissive_domains_on_user_builds: [
 +        "perspectived",
-         "recovery",
-         "su",
-     ],
-diff --git a/private/domain.te b/private/domain.te
-index 5571c67..9fe3198 100644
---- a/private/domain.te
-+++ b/private/domain.te
-@@ -2400,7 +2400,8 @@ neverallow domain *:system x509_certificate_load;
- # generates SELinux denials prior to being stopped by other parts of
- # the kernel. Disallow such nonsensical allow rules
- neverallow domain proc:filesystem associate;
--neverallow domain domain:dir { write add_name remove_name };
-+neverallow { domain -init_dir_mutation_exempt } domain:dir { write add_name remove_name };
-+neverallow init_dir_mutation_exempt { domain -init }:dir {write add_name remove_name};
- neverallow domain domain:file create;
++        "su",
++    ],
+ }
  
- # Only NPU manager, which runs inside of system_server, should be able
-diff --git a/public/attributes b/public/attributes
-index 68b7792..5fbdfd9 100644
---- a/public/attributes
-+++ b/public/attributes
-@@ -61,6 +61,9 @@ attribute vendor_file_type;
- attribute proc_type;
- expandattribute proc_type false;
- 
-+# Allowlisted domains that may violate the domain:dir restrictions on init
-+attribute init_dir_mutation_exempt;
-+
- # Types in /proc/net, excluding qtaguid types.
- # TODO(b/9496886) Lock down access to /proc/net.
- # This attribute is used to audit access to proc_net. it is temporary and will
+ se_policy_conf {
 -- 
 2.43.0
 
