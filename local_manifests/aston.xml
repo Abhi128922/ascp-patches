@@ -24,4 +24,9 @@
   <project path="vendor/bcr" name="Lunaris-AOSP/vendor_bcr" remote="github" revision="16.2" clone-depth="1" />
   <project path="vendor/custom-priv/keys" name="gaurav-paul9/android_vendor_lineage-priv_keys" remote="github" revision="master" />
 
+  <!-- Lindroid (YAAP seventeen & Linux-on-droid) -->
+  <project path="vendor/lindroid" name="yaap/vendor_lindroid" remote="github" revision="seventeen" clone-depth="1" />
+  <project path="external/lxc" name="yaap/external_lxc" remote="github" revision="seventeen" clone-depth="1" />
+  <project path="libhybris" name="yaap/libhybris" remote="github" revision="seventeen" clone-depth="1" />
+  <project path="kernel/oneplus/sm8550/drivers/lindroid-drm" name="Linux-on-droid/lindroid-drm-loopback" remote="github" revision="master" clone-depth="1" />
 </manifest>

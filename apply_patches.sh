@@ -254,6 +254,10 @@ declare -a PATCH_QUEUE=(
     "device/oneplus/aston|device_oneplus_aston|0003-aston-Enable-SurfaceFlinger-Oplus-ADFR-and-LTPO-rate.patch|LTPO|aston: Enable SurfaceFlinger Oplus ADFR and LTPO rates"
     "device/oneplus/sm8550-common|device_oneplus_sm8550_common|0001-sm8550-common-inherit-oplus-fwk.patch|DEVICE EXTRAS|sm8550-common: inherit oplus-fwk"
 
+    # Category 5: Lindroid Convergence Support
+    "frameworks/native|frameworks_native|0007-inputflinger-allow-disabling-input-devices-via-idc.patch|LINDROID|inputflinger: allow disabling input devices via idc"
+    "kernel/oneplus/sm8550|kernel|0001-kernel-lindroid-support.patch|LINDROID|kernel: Add Lindroid and LXC container support"
+    "system/sepolicy|system_sepolicy|0002-sepolicy-Add-Lindroid-perspectived-support-and-init_.patch|LINDROID|sepolicy: Add Lindroid perspectived support and init_dir_mutation_exempt"
 )
 
 # ── MAIN EXECUTION ───────────────────────────────────────────────────
