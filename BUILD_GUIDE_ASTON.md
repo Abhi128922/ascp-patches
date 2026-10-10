@@ -32,7 +32,7 @@ git clone https://github.com/Abhi128922/ascp-patches.git -b ascp-17 ~/ascp-patch
 bash ~/ascp-patches/apply_patches.sh ~/ascp
 ```
 
-All 31 patches will apply cleanly with 0 failures (or automatically skip if already present).
+All 26 patches will apply cleanly with 0 failures (or automatically skip if already present).
 
 ### Step 4: Run the Build
 ```bash
@@ -79,4 +79,4 @@ To check patch status at any time:
 ```bash
 bash ~/ascp-patches/apply_patches.sh ~/ascp
 ```
-Output confirms all 31 patches applied or safely skipped with zero failures.
+Output confirms all 26 patches applied or safely skipped with zero failures.
